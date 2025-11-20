@@ -1,0 +1,130 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <SpaRoot>ClientApp\</SpaRoot>
+    <SpaProxyServerUrl>http://localhost:3000</SpaProxyServerUrl>
+    <SpaProxyLaunchCommand>pnpm run dev</SpaProxyLaunchCommand>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(ImplicitUsings)' == 'enable'">
+    <Using Include="NexaMediaServer.API" />
+  </ItemGroup>
+  <PropertyGroup>
+    <Product>Nexa Media Server</Product>
+    <Company>Nexa Contributors</Company>
+    <Copyright>Copyright © 2025-$([System.DateTime]::Now.ToString('yyyy')) Nexa Contributors (AGPL-3.0-or-later)</Copyright>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OpenApiGenerateDocuments>false</OpenApiGenerateDocuments>
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)</OpenApiDocumentsDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalVisibleTo Include="NexaMediaServer.Tests.Integration" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="GreenDonut" />
+    <PackageReference Include="Hangfire.AspNetCore" />
+    <PackageReference Include="Hangfire.Core" />
+    <PackageReference Include="Hangfire.InMemory" />
+    <PackageReference Include="HotChocolate.AspNetCore" />
+    <PackageReference Include="HotChocolate.AspNetCore.Authorization" />
+    <PackageReference Include="HotChocolate.AspNetCore.CommandLine" />
+    <PackageReference Include="HotChocolate.Data" />
+    <PackageReference Include="HotChocolate.Data.EntityFramework" />
+    <PackageReference Include="HotChocolate.Diagnostics" />
+    <PackageReference Include="HotChocolate.PersistedOperations.InMemory" />
+    <PackageReference Include="HotChocolate.Types.Analyzers">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="libse" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.SpaProxy">
+      <!-- The SPA Proxy is only used at development time -->
+      <Publish>false</Publish>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" />
+    <PackageReference Include="NaturalSort.Extension" />
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Hangfire" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="Roslynator.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Enrichers.Environment" />
+    <PackageReference Include="Serilog.Enrichers.Process" />
+    <PackageReference Include="Serilog.Enrichers.Thread" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Formatting.Compact" />
+    <PackageReference Include="Serilog.Settings.Configuration" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="SonarAnalyzer.CSharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="StyleCop.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="..\..\stylecop.json" Link="stylecop.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NexaMediaServer.Infrastructure\NexaMediaServer.Infrastructure.csproj" />
+    <ProjectReference Include="..\NexaMediaServer.Common\NexaMediaServer.Common.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Don't publish the SPA source files, but do show them in the project files list -->
+    <Content Remove="$(SpaRoot)**" />
+    <None Remove="$(SpaRoot)**" />
+    <None Include="$(SpaRoot)**" Exclude="$(SpaRoot)node_modules\**" />
+  </ItemGroup>
+  <Target Name="EnsureNodeEnv" BeforeTargets="PreBuildEvent">
+    <!-- Ensure Node.js is installed -->
+    <Exec Command="node --version" ContinueOnError="true">
+      <Output TaskParameter="ExitCode" PropertyName="ErrorCode" />
+    </Exec>
+    <Error Condition="'$(ErrorCode)' != '0'" Text="Node.js is required to build and run this project. To continue, please install Node.js from https://nodejs.org/, and then restart your command prompt or IDE." />
+  </Target>
+  <Target Name="EnsurePnpm" BeforeTargets="PreBuildEvent" AfterTargets="EnsureNodeEnv">
+    <!-- Ensure pnpm is installed -->
+    <Exec Command="pnpm --version" ContinueOnError="true">
+      <Output TaskParameter="ExitCode" PropertyName="PnpmErrorCode" />
+    </Exec>
+    <Error Condition="'$(PnpmErrorCode)' != '0'" Text="pnpm is required to build this project. Install it with: npm install -g pnpm" />
+  </Target>
+  <Target Name="InstallClientDependencies" BeforeTargets="PreBuildEvent" AfterTargets="EnsurePnpm" Condition="!Exists('$(SpaRoot)node_modules')">
+    <Message Importance="high" Text="Restoring client dependencies using 'pnpm'. This may take several minutes..." />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="pnpm install" />
+  </Target>
+  <Target Name="BuildClientApp" BeforeTargets="PreBuildEvent" AfterTargets="EnsurePnpm" Condition="!Exists('wwwroot\build')">
+    <Message Importance="high" Text="Building client app..." />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="pnpm run build" />
+  </Target>
+  <Target Name="PublishRunVite" AfterTargets="ComputeFilesToPublish">
+    <!-- As part of publishing, ensure the JS resources are freshly built in production mode -->
+    <Exec WorkingDirectory="$(SpaRoot)" Command="pnpm install" />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="pnpm run build" />
+    <!-- The build output is already in wwwroot/build, so it will be included automatically -->
+  </Target>
+</Project>

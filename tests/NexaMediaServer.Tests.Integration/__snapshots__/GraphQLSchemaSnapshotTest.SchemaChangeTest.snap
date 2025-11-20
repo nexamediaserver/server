@@ -1,0 +1,854 @@
+﻿schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+"The node interface is implemented by entities that have a global unique identifier."
+interface Node {
+  id: ID!
+}
+
+"Represents the mutation payload returned after creating a library section."
+type AddLibrarySectionPayload {
+  "Gets the created library section."
+  librarySection: LibrarySection!
+  "Gets the identifier of the queued scan."
+  scanId: Int!
+  query: Query!
+}
+
+"A connection to a list of items."
+type ChildrenConnection {
+  "Information to aid in pagination."
+  pageInfo: PageInfo!
+  "A list of edges."
+  edges: [ChildrenEdge!]
+  "A flattened list of the nodes."
+  nodes: [Item!]
+  "Identifies the total count of items in the connection."
+  totalCount: Int! @cost(weight: "10")
+}
+
+"An edge in a connection."
+type ChildrenEdge {
+  "A cursor for use in pagination."
+  cursor: String!
+  "The item at the end of the edge."
+  node: Item!
+}
+
+"GraphQL type representing a directory listing response."
+type DirectoryListing {
+  "Gets the canonical path that was listed."
+  currentPath: String!
+  "Gets the parent path if available."
+  parentPath: String
+  "Gets the child entries."
+  entries: [FileSystemEntry!]!
+}
+
+"GraphQL type describing an entry in a directory listing."
+type FileSystemEntry {
+  "Gets the entry name."
+  name: String!
+  "Gets the raw server path to the entry."
+  path: String!
+  "Gets a value indicating whether the entry is a directory."
+  isDirectory: Boolean!
+  "Gets a value indicating whether the entry is a file."
+  isFile: Boolean!
+  "Gets a value indicating whether the entry is a symbolic link."
+  isSymbolicLink: Boolean!
+  "Gets a value indicating whether the entry can be selected in the UI."
+  isSelectable: Boolean!
+}
+
+"GraphQL type representing an available filesystem root."
+type FileSystemRoot {
+  "Gets the identifier for the root entry."
+  id: String!
+  "Gets the display label."
+  label: String!
+  "Gets the raw path accessible by the server OS."
+  path: String!
+  "Gets the kind of root."
+  kind: FileSystemRootKind!
+  "Gets a value indicating whether the root is read-only."
+  isReadOnly: Boolean!
+}
+
+"Representation of a metadata item for pagination queries."
+type Item implements Node {
+  """
+  Resolves the number of times the current user has viewed the metadata item.
+  
+  
+  **Returns:**
+  The number of completed views for the current user.
+  """
+  viewCount: Int! @cost(weight: "10")
+  """
+  Resolves the resume offset for the current user.
+  
+  
+  **Returns:**
+  The playback offset in milliseconds.
+  """
+  viewOffset: Int! @cost(weight: "10")
+  """
+  Resolves the user rating for the metadata item.
+  
+  
+  **Returns:**
+  The rating value or 0 when unset.
+  """
+  rating: Float! @cost(weight: "10")
+  "Gets the global Relay-compatible identifier of the metadata item."
+  id: ID!
+  "Gets the type of the metadata item."
+  metadataType: MetadataType!
+  "Gets the title of the metadata item."
+  title: String!
+  "Gets the sortable title of the metadata item."
+  titleSort: String!
+  "Gets the original title of the metadata item."
+  originalTitle: String!
+  "Gets the summary description of the metadata item."
+  summary: String!
+  "Gets the tagline of the metadata item."
+  tagline: String!
+  "Gets the content rating of the metadata item."
+  contentRating: String!
+  "Gets the year the metadata item was released."
+  year: Int!
+  "Gets the date the metadata item was originally available."
+  originallyAvailableAt: LocalDate
+  "Gets the thumbnail URL of the metadata item."
+  thumbUri: String
+  "Gets the backdrop URL of the metadata item."
+  artUri: String
+  "Gets the logo URL of the metadata item."
+  logoUri: String
+  "Gets the theme URL of the metadata item."
+  themeUrl: String
+  "Gets the parent identifier of the metadata item."
+  parentId: ID!
+  "Gets the grandparent identifier of the metadata item."
+  grandparentId: ID!
+  "Gets the parent title of the metadata item."
+  parentTitle: String!
+  "Gets the index of the metadata item."
+  index: Int!
+  "Gets the length of the metadata item in milliseconds."
+  length: Int!
+  "Gets the number of leaf items in the metadata item."
+  leafCount: Int!
+  "Gets the number of child items in the metadata item."
+  childCount: Int!
+  """
+  Gets the direct play URL for streaming the first media part of this item.
+  Returns null if no media parts are available.
+  """
+  directPlayUrl: String
+  """
+  Gets the trickplay thumbnail track URL (WebVTT format) for video scrubbing.
+  Returns null if no trickplay data is available.
+  """
+  trickplayUrl: String
+}
+
+"Represents a job notification event sent to clients via GraphQL subscriptions."
+type JobNotification {
+  "Gets or sets the unique identifier for this job instance."
+  id: String!
+  "Gets or sets the type of job."
+  type: JobType!
+  "Gets or sets the library section ID if the job is related to a specific library."
+  librarySectionId: Int
+  "Gets or sets the library section name if available."
+  librarySectionName: String
+  "Gets or sets a human-readable description of the job."
+  description: String!
+  "Gets or sets the current progress percentage (0-100)."
+  progressPercentage: Float!
+  "Gets or sets the number of completed items."
+  completedItems: Int!
+  "Gets or sets the total number of items to process."
+  totalItems: Int!
+  "Gets or sets a value indicating whether the job is still running."
+  isActive: Boolean!
+  "Gets or sets the timestamp when this notification was generated."
+  timestamp: DateTime!
+}
+
+type KeyValuePairOfStringAndDictionaryOfStringAndString {
+  key: String!
+  value: [KeyValuePairOfStringAndString!]!
+}
+
+type KeyValuePairOfStringAndString {
+  key: String!
+  value: String!
+}
+
+"Representation of a library section for GraphQL queries."
+type LibrarySection implements Node {
+  """
+  Gets a Relay-paginated list of top-level (root) metadata items (those without a parent) for this library section.
+  
+  
+  **Returns:**
+  An in-memory queryable used by HotChocolate to create a connection.
+  """
+  children("Optional metadata type constraint." metadataType: MetadataType! "Returns the first _n_ elements from the list." first: Int "Returns the elements in the list that come after the specified cursor." after: String "Returns the last _n_ elements from the list." last: Int "Returns the elements in the list that come before the specified cursor." before: String where: ItemFilterInput @cost(weight: "10") order: [ItemSortInput!] @cost(weight: "10")): ChildrenConnection @authorize @listSize(assumedSize: 100, slicingArguments: [ "first", "last" ], slicingArgumentDefaultValue: 100, sizedFields: [ "edges", "nodes" ], requireOneSlicingArgument: false) @cost(weight: "10")
+  "Gets the global Relay-compatible identifier of the library section."
+  id: ID!
+  "Gets the display name of the library section."
+  name: String!
+  "Gets the sortable name of the library section."
+  sortName: String!
+  "Gets the type of the library section."
+  type: LibraryType!
+  "Gets the list of root locations for the library section."
+  locations: [String!]!
+  "Gets the settings for this library section."
+  settings: LibrarySectionSettings!
+}
+
+"GraphQL representation of per-library settings."
+type LibrarySectionSettings {
+  "Gets the preferred metadata language (BCP-47), e.g. \"en\", \"de-DE\"."
+  preferredMetadataLanguage: String!
+  "Gets the ordered list of metadata agent identifiers to use."
+  metadataAgentOrder: [String!]!
+  "Gets a value indicating whether to hide seasons for single-season series."
+  hideSeasonsForSingleSeasonSeries: Boolean!
+  "Gets the episode sort order preference for episodic content."
+  episodeSortOrder: EpisodeSortOrder!
+  "Gets the preferred audio languages (ordered)."
+  preferredAudioLanguages: [String!]!
+  "Gets the preferred subtitle languages (ordered)."
+  preferredSubtitleLanguages: [String!]!
+  "Gets the map of metadata agent specific settings: agentId -> (key -> value)."
+  metadataAgentSettings: [KeyValuePairOfStringAndDictionaryOfStringAndString!]!
+}
+
+"A connection to a list of items."
+type LibrarySectionsConnection {
+  "Information to aid in pagination."
+  pageInfo: PageInfo!
+  "A list of edges."
+  edges: [LibrarySectionsEdge!]
+  "A flattened list of the nodes."
+  nodes: [LibrarySection!]
+  "Identifies the total count of items in the connection."
+  totalCount: Int! @cost(weight: "10")
+}
+
+"An edge in a connection."
+type LibrarySectionsEdge {
+  "A cursor for use in pagination."
+  cursor: String!
+  "The item at the end of the edge."
+  node: LibrarySection!
+}
+
+"A connection to a list of items."
+type MetadataItemsConnection {
+  "Information to aid in pagination."
+  pageInfo: PageInfo!
+  "A list of edges."
+  edges: [MetadataItemsEdge!]
+  "A flattened list of the nodes."
+  nodes: [Item!]
+}
+
+"An edge in a connection."
+type MetadataItemsEdge {
+  "A cursor for use in pagination."
+  cursor: String!
+  "The item at the end of the edge."
+  node: Item!
+}
+
+type Mutation {
+  """
+  Adds a new library section and schedules an initial scan.
+  
+  
+  **Returns:**
+  The created library section and scan metadata.
+  """
+  addLibrarySection("The user-provided library section details." input: AddLibrarySectionInput!): AddLibrarySectionPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+}
+
+"Information about pagination in a connection."
+type PageInfo {
+  "Indicates whether more edges exist following the set defined by the clients arguments."
+  hasNextPage: Boolean!
+  "Indicates whether more edges exist prior the set defined by the clients arguments."
+  hasPreviousPage: Boolean!
+  "When paginating backwards, the cursor to continue."
+  startCursor: String
+  "When paginating forwards, the cursor to continue."
+  endCursor: String
+}
+
+type Query {
+  "Fetches an object given its ID."
+  node("ID of the object." id: ID!): Node @lookup @cost(weight: "10")
+  "Lookup nodes by a list of IDs."
+  nodes("The list of node IDs." ids: [ID!]!): [Node]! @cost(weight: "10")
+  """
+  Gets basic server information like version and environment.
+  
+  
+  **Returns:**
+  The server info object.
+  """
+  serverInfo: ServerInfo!
+  """
+  Gets a library section by its global Relay ID.
+  
+  
+  **Returns:**
+  A single LibrarySection.
+  """
+  librarySection("The Relay global ID for LibrarySection." id: ID!): LibrarySection @authorize @cost(weight: "10")
+  """
+  Gets a paginated list of library sections.
+  
+  
+  **Returns:**
+  A connection of LibrarySections.
+  """
+  librarySections("Returns the first _n_ elements from the list." first: Int "Returns the elements in the list that come after the specified cursor." after: String "Returns the last _n_ elements from the list." last: Int "Returns the elements in the list that come before the specified cursor." before: String where: LibrarySectionFilterInput @cost(weight: "10") order: [LibrarySectionSortInput!] @cost(weight: "10")): LibrarySectionsConnection @authorize @listSize(assumedSize: 50, slicingArguments: [ "first", "last" ], slicingArgumentDefaultValue: 50, sizedFields: [ "edges", "nodes" ], requireOneSlicingArgument: false) @cost(weight: "10")
+  """
+  Gets a metadata item.
+  
+  
+  **Returns:**
+  A metadata item instance.
+  """
+  metadataItem("The identifier of the metadata item." id: ID!): Item @authorize @cost(weight: "10")
+  """
+  Gets a collection of metadata items.
+  
+  
+  **Returns:**
+  A collection of metadata items.
+  """
+  metadataItems("Returns the first _n_ elements from the list." first: Int "Returns the elements in the list that come after the specified cursor." after: String "Returns the last _n_ elements from the list." last: Int "Returns the elements in the list that come before the specified cursor." before: String where: ItemFilterInput @cost(weight: "10") order: [ItemSortInput!] @cost(weight: "10")): MetadataItemsConnection @authorize @listSize(assumedSize: 50, slicingArguments: [ "first", "last" ], slicingArgumentDefaultValue: 10, sizedFields: [ "edges", "nodes" ], requireOneSlicingArgument: false) @cost(weight: "10")
+  """
+  Lists filesystem roots (drives, mounts) that can be browsed for library creation.
+  
+  
+  **Returns:**
+  A collection of filesystem roots.
+  """
+  fileSystemRoots: [FileSystemRoot!]! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Browses a directory path, returning child entries, while ensuring access restrictions.
+  
+  
+  **Returns:**
+  The directory listing for the requested path.
+  """
+  browseDirectory("The absolute path to inspect." path: String!): DirectoryListing! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+}
+
+"Represents server runtime information for client display."
+type ServerInfo {
+  "Gets the semantic version string of the running server build."
+  versionString: String!
+  "Gets a value indicating whether the server is running in Development environment."
+  isDevelopment: Boolean!
+}
+
+"Defines GraphQL subscription operations for the API."
+type Subscription {
+  """
+  Streams metadata items as they are updated. Clients receive the full mapped metadata item.
+  
+  
+  **Returns:**
+  The updated metadata item mapped to the API type, or null if not found.
+  """
+  onMetadataItemUpdated: Item @authorize @cost(weight: "10")
+  """
+  Streams job notifications for background tasks such as library scans and metadata refresh.
+  Clients receive real-time updates about job progress and completion.
+  
+  
+  **Returns:**
+  The job notification with progress information.
+  """
+  onJobNotification: JobNotification! @authorize @cost(weight: "10")
+}
+
+"Represents the input required to create a library section."
+input AddLibrarySectionInput {
+  "Gets or sets the library name."
+  name: String!
+  "Gets or sets the library type."
+  type: LibraryType!
+  "Gets or sets the root paths associated with the library."
+  rootPaths: [String!]!
+  "Gets or sets the initial settings for the library section."
+  settings: LibrarySectionSettingsInput
+}
+
+input BooleanOperationFilterInput {
+  eq: Boolean @cost(weight: "10")
+  neq: Boolean @cost(weight: "10")
+}
+
+input EpisodeSortOrderOperationFilterInput {
+  eq: EpisodeSortOrder @cost(weight: "10")
+  neq: EpisodeSortOrder @cost(weight: "10")
+  in: [EpisodeSortOrder!] @cost(weight: "10")
+  nin: [EpisodeSortOrder!] @cost(weight: "10")
+}
+
+input IdOperationFilterInput {
+  eq: ID @cost(weight: "10")
+  neq: ID @cost(weight: "10")
+  in: [ID] @cost(weight: "10")
+  nin: [ID] @cost(weight: "10")
+}
+
+input IntOperationFilterInput {
+  eq: Int @cost(weight: "10")
+  neq: Int @cost(weight: "10")
+  in: [Int] @cost(weight: "10")
+  nin: [Int] @cost(weight: "10")
+  gt: Int @cost(weight: "10")
+  ngt: Int @cost(weight: "10")
+  gte: Int @cost(weight: "10")
+  ngte: Int @cost(weight: "10")
+  lt: Int @cost(weight: "10")
+  nlt: Int @cost(weight: "10")
+  lte: Int @cost(weight: "10")
+  nlte: Int @cost(weight: "10")
+}
+
+"Representation of a metadata item for pagination queries."
+input ItemFilterInput {
+  and: [ItemFilterInput!]
+  or: [ItemFilterInput!]
+  "Gets the global Relay-compatible identifier of the metadata item."
+  id: IdOperationFilterInput
+  "Gets the type of the metadata item."
+  metadataType: MetadataTypeOperationFilterInput
+  "Gets the title of the metadata item."
+  title: StringOperationFilterInput
+  "Gets the sortable title of the metadata item."
+  titleSort: StringOperationFilterInput
+  "Gets the original title of the metadata item."
+  originalTitle: StringOperationFilterInput
+  "Gets the summary description of the metadata item."
+  summary: StringOperationFilterInput
+  "Gets the tagline of the metadata item."
+  tagline: StringOperationFilterInput
+  "Gets the content rating of the metadata item."
+  contentRating: StringOperationFilterInput
+  "Gets the year the metadata item was released."
+  year: IntOperationFilterInput
+  "Gets the date the metadata item was originally available."
+  originallyAvailableAt: LocalDateOperationFilterInput
+  "Gets the thumbnail URL of the metadata item."
+  thumbUri: StringOperationFilterInput
+  "Gets the backdrop URL of the metadata item."
+  artUri: StringOperationFilterInput
+  "Gets the logo URL of the metadata item."
+  logoUri: StringOperationFilterInput
+  "Gets the theme URL of the metadata item."
+  themeUrl: StringOperationFilterInput
+  "Gets the parent identifier of the metadata item."
+  parentId: IdOperationFilterInput
+  "Gets the grandparent identifier of the metadata item."
+  grandparentId: IdOperationFilterInput
+  "Gets the parent title of the metadata item."
+  parentTitle: StringOperationFilterInput
+  "Gets the index of the metadata item."
+  index: IntOperationFilterInput
+  "Gets the length of the metadata item in milliseconds."
+  length: IntOperationFilterInput
+  "Gets the number of leaf items in the metadata item."
+  leafCount: IntOperationFilterInput
+  "Gets the number of child items in the metadata item."
+  childCount: IntOperationFilterInput
+  """
+  Gets the direct play URL for streaming the first media part of this item.
+  Returns null if no media parts are available.
+  """
+  directPlayUrl: StringOperationFilterInput
+  """
+  Gets the trickplay thumbnail track URL (WebVTT format) for video scrubbing.
+  Returns null if no trickplay data is available.
+  """
+  trickplayUrl: StringOperationFilterInput
+}
+
+"Representation of a metadata item for pagination queries."
+input ItemSortInput {
+  "Gets the sortable title of the metadata item."
+  title: SortEnumType @cost(weight: "10")
+  "Gets the year the metadata item was released."
+  year: SortEnumType @cost(weight: "10")
+}
+
+input KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput {
+  and: [KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput!]
+  or: [KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput!]
+  key: StringOperationFilterInput
+  value: ListFilterInputTypeOfKeyValuePairOfStringAndStringFilterInput
+}
+
+input KeyValuePairOfStringAndDictionaryOfStringAndStringInput {
+  key: String!
+  value: [KeyValuePairOfStringAndStringInput!]!
+}
+
+input KeyValuePairOfStringAndStringFilterInput {
+  and: [KeyValuePairOfStringAndStringFilterInput!]
+  or: [KeyValuePairOfStringAndStringFilterInput!]
+  key: StringOperationFilterInput
+  value: StringOperationFilterInput
+}
+
+input KeyValuePairOfStringAndStringInput {
+  key: String!
+  value: String!
+}
+
+"Representation of a library section for GraphQL queries."
+input LibrarySectionFilterInput {
+  and: [LibrarySectionFilterInput!]
+  or: [LibrarySectionFilterInput!]
+  "Gets the global Relay-compatible identifier of the library section."
+  id: IdOperationFilterInput
+  "Gets the display name of the library section."
+  name: StringOperationFilterInput
+  "Gets the sortable name of the library section."
+  sortName: StringOperationFilterInput
+  "Gets the type of the library section."
+  type: LibraryTypeOperationFilterInput
+  "Gets the list of root locations for the library section."
+  locations: ListStringOperationFilterInput
+  "Gets the settings for this library section."
+  settings: LibrarySectionSettingsFilterInput
+}
+
+"GraphQL representation of per-library settings."
+input LibrarySectionSettingsFilterInput {
+  and: [LibrarySectionSettingsFilterInput!]
+  or: [LibrarySectionSettingsFilterInput!]
+  "Gets the preferred metadata language (BCP-47), e.g. \"en\", \"de-DE\"."
+  preferredMetadataLanguage: StringOperationFilterInput
+  "Gets the ordered list of metadata agent identifiers to use."
+  metadataAgentOrder: ListStringOperationFilterInput
+  "Gets a value indicating whether to hide seasons for single-season series."
+  hideSeasonsForSingleSeasonSeries: BooleanOperationFilterInput
+  "Gets the episode sort order preference for episodic content."
+  episodeSortOrder: EpisodeSortOrderOperationFilterInput
+  "Gets the preferred audio languages (ordered)."
+  preferredAudioLanguages: ListStringOperationFilterInput
+  "Gets the preferred subtitle languages (ordered)."
+  preferredSubtitleLanguages: ListStringOperationFilterInput
+  "Gets the map of metadata agent specific settings: agentId -> (key -> value)."
+  metadataAgentSettings: ListFilterInputTypeOfKeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput
+}
+
+"GraphQL representation of per-library settings."
+input LibrarySectionSettingsInput {
+  "Gets the preferred metadata language (BCP-47), e.g. \"en\", \"de-DE\"."
+  preferredMetadataLanguage: String!
+  "Gets the ordered list of metadata agent identifiers to use."
+  metadataAgentOrder: [String!]!
+  "Gets a value indicating whether to hide seasons for single-season series."
+  hideSeasonsForSingleSeasonSeries: Boolean!
+  "Gets the episode sort order preference for episodic content."
+  episodeSortOrder: EpisodeSortOrder!
+  "Gets the preferred audio languages (ordered)."
+  preferredAudioLanguages: [String!]!
+  "Gets the preferred subtitle languages (ordered)."
+  preferredSubtitleLanguages: [String!]!
+  "Gets the map of metadata agent specific settings: agentId -> (key -> value)."
+  metadataAgentSettings: [KeyValuePairOfStringAndDictionaryOfStringAndStringInput!]!
+}
+
+"GraphQL representation of per-library settings."
+input LibrarySectionSettingsSortInput {
+  "Gets the preferred metadata language (BCP-47), e.g. \"en\", \"de-DE\"."
+  preferredMetadataLanguage: SortEnumType @cost(weight: "10")
+  "Gets a value indicating whether to hide seasons for single-season series."
+  hideSeasonsForSingleSeasonSeries: SortEnumType @cost(weight: "10")
+  "Gets the episode sort order preference for episodic content."
+  episodeSortOrder: SortEnumType @cost(weight: "10")
+}
+
+"Representation of a library section for GraphQL queries."
+input LibrarySectionSortInput {
+  "Gets the global Relay-compatible identifier of the library section."
+  id: SortEnumType @cost(weight: "10")
+  "Gets the display name of the library section."
+  name: SortEnumType @cost(weight: "10")
+  "Gets the sortable name of the library section."
+  sortName: SortEnumType @cost(weight: "10")
+  "Gets the type of the library section."
+  type: SortEnumType @cost(weight: "10")
+  "Gets the settings for this library section."
+  settings: LibrarySectionSettingsSortInput @cost(weight: "10")
+}
+
+input LibraryTypeOperationFilterInput {
+  eq: LibraryType @cost(weight: "10")
+  neq: LibraryType @cost(weight: "10")
+  in: [LibraryType!] @cost(weight: "10")
+  nin: [LibraryType!] @cost(weight: "10")
+}
+
+input ListFilterInputTypeOfKeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput {
+  all: KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput @cost(weight: "10")
+  none: KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput @cost(weight: "10")
+  some: KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput @cost(weight: "10")
+  any: Boolean @cost(weight: "10")
+}
+
+input ListFilterInputTypeOfKeyValuePairOfStringAndStringFilterInput {
+  all: KeyValuePairOfStringAndStringFilterInput @cost(weight: "10")
+  none: KeyValuePairOfStringAndStringFilterInput @cost(weight: "10")
+  some: KeyValuePairOfStringAndStringFilterInput @cost(weight: "10")
+  any: Boolean @cost(weight: "10")
+}
+
+input ListStringOperationFilterInput {
+  all: StringOperationFilterInput @cost(weight: "10")
+  none: StringOperationFilterInput @cost(weight: "10")
+  some: StringOperationFilterInput @cost(weight: "10")
+  any: Boolean @cost(weight: "10")
+}
+
+input LocalDateOperationFilterInput {
+  eq: LocalDate @cost(weight: "10")
+  neq: LocalDate @cost(weight: "10")
+  in: [LocalDate] @cost(weight: "10")
+  nin: [LocalDate] @cost(weight: "10")
+  gt: LocalDate @cost(weight: "10")
+  ngt: LocalDate @cost(weight: "10")
+  gte: LocalDate @cost(weight: "10")
+  ngte: LocalDate @cost(weight: "10")
+  lt: LocalDate @cost(weight: "10")
+  nlt: LocalDate @cost(weight: "10")
+  lte: LocalDate @cost(weight: "10")
+  nlte: LocalDate @cost(weight: "10")
+}
+
+input MetadataTypeOperationFilterInput {
+  eq: MetadataType @cost(weight: "10")
+  neq: MetadataType @cost(weight: "10")
+  in: [MetadataType!] @cost(weight: "10")
+  nin: [MetadataType!] @cost(weight: "10")
+}
+
+input StringOperationFilterInput {
+  and: [StringOperationFilterInput!]
+  or: [StringOperationFilterInput!]
+  eq: String @cost(weight: "10")
+  neq: String @cost(weight: "10")
+  contains: String @cost(weight: "20")
+  ncontains: String @cost(weight: "20")
+  in: [String] @cost(weight: "10")
+  nin: [String] @cost(weight: "10")
+  startsWith: String @cost(weight: "20")
+  nstartsWith: String @cost(weight: "20")
+  endsWith: String @cost(weight: "20")
+  nendsWith: String @cost(weight: "20")
+}
+
+"Defines when a policy shall be executed."
+enum ApplyPolicy {
+  "Before the resolver was executed."
+  BEFORE_RESOLVER
+  "After the resolver was executed."
+  AFTER_RESOLVER
+  "The policy is applied in the validation step before the execution."
+  VALIDATION
+}
+
+"Defines how episodes should be sorted within a season\/series for display and selection."
+enum EpisodeSortOrder {
+  "Sort by original air date ascending."
+  AIR_DATE
+  "Sort by season and episode number (SxxExx), ascending."
+  SEASON_EPISODE
+  "Sort by production order when available; falls back to air date."
+  PRODUCTION
+}
+
+"Categorizes filesystem root types."
+enum FileSystemRootKind {
+  "The primary OS root (e.g., \/ or C:\\)."
+  ROOT
+  "A logical drive (Windows) or volume."
+  DRIVE
+  "A mounted filesystem."
+  MOUNT
+}
+
+"Represents the type of background job being executed."
+enum JobType {
+  "Library scanning job."
+  LIBRARY_SCAN
+  "Metadata refresh job for one or more items."
+  METADATA_REFRESH
+  "File analysis job."
+  FILE_ANALYSIS
+  "Image generation job."
+  IMAGE_GENERATION
+  "Trickplay (BIF) generation job."
+  TRICKPLAY_GENERATION
+}
+
+"Represents the type of media library."
+enum LibraryType {
+  "Movies library containing feature films, short films, and documentaries."
+  MOVIES
+  "TV Shows library containing series, seasons, and episodes."
+  TV_SHOWS
+  "Music Videos library containing standalone music video content."
+  MUSIC_VIDEOS
+  "Home Videos library for personal video recordings."
+  HOME_VIDEOS
+  "Music library containing albums, tracks, and recordings."
+  MUSIC
+  "Audiobooks library containing narrated book content."
+  AUDIOBOOKS
+  "Podcasts library containing podcast series and episodes."
+  PODCASTS
+  "Photos library containing personal photographs and albums."
+  PHOTOS
+  "Pictures library containing digital art, wallpapers, and images."
+  PICTURES
+  "Books library containing novels, non-fiction, and written literature."
+  BOOKS
+  "Comics library containing comic books and graphic novels."
+  COMICS
+  "Manga library containing Japanese manga series."
+  MANGA
+  "Magazines library containing periodical publications."
+  MAGAZINES
+  "Games library containing video games across all platforms."
+  GAMES
+}
+
+"Enumeration of supported metadata types."
+enum MetadataType {
+  "Unknown or unspecified metadata type."
+  UNKNOWN
+  "The metadata represents a movie, either feature-length or short film."
+  MOVIE
+  "The metadata represents a TV show."
+  SHOW
+  "The metadata represents a single season of a TV show."
+  SEASON
+  "The metadata represents an episode of a TV show."
+  EPISODE
+  "The metadata represents a grouping of album releases, such as a studio album or compilation."
+  ALBUM_RELEASE_GROUP
+  "The metadata represents a audio album release."
+  ALBUM_RELEASE
+  "The metadata represents a audio track."
+  TRACK
+  "The metadata represents a audio recording."
+  RECORDING
+  "The metadata represents a audio work."
+  AUDIO_WORK
+  "The metadata represents a photo album."
+  PHOTO_ALBUM
+  "The metadata represents a photo."
+  PHOTO
+  "The metadata represents a picture set."
+  PICTURE_SET
+  "The metadata represents a picture."
+  PICTURE
+  """
+  The metadata represents an ordered set of books, such as a manga series, a periodical,
+  or a comic book series.
+  """
+  BOOK_SERIES
+  """
+  The metadata represents a grouping of book editions, such as a single book released
+  in multiple formats (hardcover, paperback, eBook, audiobook).
+  """
+  EDITION_GROUP
+  """
+  The metadata represents a concrete publication of a book, such as a specific edition
+  or format.
+  """
+  EDITION
+  "The metadata represents an item within a book edition, such as a chapter or volume."
+  EDITION_ITEM
+  "The metadata represents a literary work as a whole."
+  LITERARY_WORK
+  "The metadata represents a part of a literary work, such as a chapter or section."
+  LITERARY_WORK_PART
+  "The metadata represents a video game franchise."
+  GAME_FRANCHISE
+  "The metadata represents a video game series."
+  GAME_SERIES
+  "The metadata represents a single video game."
+  GAME
+  "The metadata represents a game release."
+  GAME_RELEASE
+  "The metadata represents an individual person."
+  PERSON
+  "The metadata represents a group of people, such as a band, a troupe, or a cast."
+  GROUP
+  "Collection metadata type."
+  COLLECTION
+  "Playlist metadata type."
+  PLAYLIST
+  "Playlists folder metadata type."
+  PLAYLISTS_FOLDER
+  "Trailer metadata type."
+  TRAILER
+  "Clip metadata type."
+  CLIP
+  "Optimized version metadata type."
+  OPTIMIZED_VERSION
+  "User playlist item metadata type."
+  USER_PLAYLIST_ITEM
+}
+
+enum SortEnumType {
+  ASC
+  DESC
+}
+
+"The authorize directive."
+directive @authorize("The name of the authorization policy that determines access to the annotated resource." policy: String "Roles that are allowed to access the annotated resource." roles: [String!] "Defines when when the authorize directive shall be applied.By default the authorize directives are applied during the validation phase." apply: ApplyPolicy! = BEFORE_RESOLVER) repeatable on OBJECT | FIELD_DEFINITION
+
+"The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
+directive @cost("The `weight` argument defines what value to add to the overall cost for every appearance, or possible appearance, of a type, field, argument, etc." weight: String!) on SCALAR | OBJECT | FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM | INPUT_FIELD_DEFINITION
+
+"The purpose of the `@listSize` directive is to either inform the static analysis about the size of returned lists (if that information is statically available), or to point the analysis to where to find that information."
+directive @listSize("The `assumedSize` argument can be used to statically define the maximum length of a list returned by a field." assumedSize: Int "The `slicingArguments` argument can be used to define which of the field's arguments with numeric type are slicing arguments, so that their value determines the size of the list returned by that field. It may specify a list of multiple slicing arguments." slicingArguments: [String!] "The `slicingArgumentDefaultValue` argument can be used to define a default value for a slicing argument, which is used if the argument is not present in a query." slicingArgumentDefaultValue: Int "The `sizedFields` argument can be used to define that the value of the `assumedSize` argument or of a slicing argument does not affect the size of a list returned by a field itself, but that of a list returned by one of its sub-fields." sizedFields: [String!] "The `requireOneSlicingArgument` argument can be used to inform the static analysis that it should expect that exactly one of the defined slicing arguments is present in a query. If that is not the case (i.e., if none or multiple slicing arguments are present), the static analysis may throw an error." requireOneSlicingArgument: Boolean! = true) on FIELD_DEFINITION
+
+"""
+The @lookup directive is used within a source schema to specify output fields
+that can be used by the distributed GraphQL executor to resolve an entity by
+a stable key.
+"""
+directive @lookup on FIELD_DEFINITION
+
+"The `@specifiedBy` directive is used within the type system definition language to provide a URL for specifying the behavior of custom scalar definitions."
+directive @specifiedBy("The specifiedBy URL points to a human-readable specification. This field will only read a result for scalar types." url: String!) on SCALAR
+
+"The `DateTime` scalar represents an ISO-8601 compliant date time type."
+scalar DateTime @specifiedBy(url: "https:\/\/www.graphql-scalars.com\/date-time")
+
+"The `LocalDate` scalar type represents an ISO date string, represented as UTF-8 character sequences YYYY-MM-DD. The scalar follows the specification defined in RFC3339"
+scalar LocalDate

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DotNetAnalyzers/StyleCopAnalyzers/master/StyleCop.Analyzers/StyleCop.Analyzers/Settings/stylecop.schema.json",
+  "settings": {
+    "documentationRules": {
+        "companyName": "Nexa",
+        "copyrightText": "SPDX-FileCopyrightText: 2025 Nexa Contributors <contact@nexa.ms>\nSPDX-License-Identifier: {spdxLicense}",
+        "variables": {
+            "spdxLicense": "AGPL-3.0-or-later"
+        },
+        "xmlHeader": false
+    }
+  }
+}
