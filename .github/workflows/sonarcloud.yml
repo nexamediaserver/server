@@ -1,0 +1,148 @@
+name: SonarCloud Analysis
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main, develop]
+    workflow_dispatch:
+
+concurrency:
+    group: sonarcloud-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    pull-requests: write
+
+jobs:
+    analyze:
+        name: Build, Test, and Analyze
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        env:
+            DOTNET_VERSION: 9.0.x
+            NODE_VERSION: 24.x
+            PNPM_VERSION: 10.16.0
+            CLIENT_APP_PATH: src/NexaMediaServer.API/ClientApp
+            DOTNET_TEST_RESULTS: artifacts/test-results
+            DOTNET_COVERAGE_PATH: artifacts/coverage/dotnet
+            WEB_COVERAGE_PATH: artifacts/coverage/web
+            SONAR_ORGANIZATION: ${{ github.repository_owner }}
+            SONAR_PROJECT_KEY: ${{ format('{0}_{1}', github.repository_owner, github.event.repository.name) }}
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: ${{ env.DOTNET_VERSION }}
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: ${{ env.PNPM_VERSION }}
+                  run_install: false
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: pnpm
+                  cache-dependency-path: ${{ env.CLIENT_APP_PATH }}/pnpm-lock.yaml
+
+            - name: Cache SonarCloud packages
+              uses: actions/cache@v4
+              with:
+                  path: ~/.sonar/cache
+                  key: ${{ runner.os }}-sonar-${{ hashFiles('NexaMediaServer.sln') }}
+                  restore-keys: |
+                      ${{ runner.os }}-sonar-
+
+            - name: Restore .NET dependencies
+              run: dotnet restore NexaMediaServer.sln
+
+            - name: Build solution
+              run: dotnet build NexaMediaServer.sln --configuration Release --no-restore
+
+            - name: Prepare test artifact directories
+              run: |
+                  mkdir -p "${DOTNET_TEST_RESULTS}"
+                  mkdir -p "${DOTNET_COVERAGE_PATH}/unit"
+                  mkdir -p "${DOTNET_COVERAGE_PATH}/integration"
+                  mkdir -p "${WEB_COVERAGE_PATH}"
+
+            - name: Run .NET unit tests with coverage
+              id: dotnet_unit_tests
+              continue-on-error: true
+              run: |
+                  dotnet test tests/NexaMediaServer.Tests.Unit/NexaMediaServer.Tests.Unit.csproj \
+                    --configuration Release \
+                    --no-build \
+                    --logger "trx;LogFileName=unit-tests.trx" \
+                    --results-directory "${DOTNET_TEST_RESULTS}" \
+                    /p:CollectCoverage=true \
+                    /p:CoverletOutputFormat=opencover \
+                    /p:CoverletOutput="${DOTNET_COVERAGE_PATH}/unit/"
+
+            - name: Run .NET integration tests with coverage
+              id: dotnet_integration_tests
+              continue-on-error: true
+              run: |
+                  dotnet test tests/NexaMediaServer.Tests.Integration/NexaMediaServer.Tests.Integration.csproj \
+                    --configuration Release \
+                    --no-build \
+                    --logger "trx;LogFileName=integration-tests.trx" \
+                    --results-directory "${DOTNET_TEST_RESULTS}" \
+                    /p:CollectCoverage=true \
+                    /p:CoverletOutputFormat=opencover \
+                    /p:CoverletOutput="${DOTNET_COVERAGE_PATH}/integration/"
+
+            - name: Install web client dependencies
+              working-directory: ${{ env.CLIENT_APP_PATH }}
+              run: pnpm install --frozen-lockfile
+
+            - name: Run Vitest with coverage
+              id: vitest
+              continue-on-error: true
+              working-directory: ${{ env.CLIENT_APP_PATH }}
+              env:
+                  WEB_COVERAGE_ABS: ${{ github.workspace }}/${{ env.WEB_COVERAGE_PATH }}
+                  TEST_RESULTS_ABS: ${{ github.workspace }}/${{ env.DOTNET_TEST_RESULTS }}
+              run: |
+                  pnpm vitest run \
+                    --coverage.enabled true \
+                    --coverage.reporter=lcov \
+                    --coverage.reportsDirectory="${WEB_COVERAGE_ABS}" \
+                    --reporter=default \
+                    --reporter=junit \
+                    --outputFile="${TEST_RESULTS_ABS}/client-vitest-junit.xml"
+
+            - name: SonarCloud Scan
+              if: ${{ always() }}
+              uses: SonarSource/sonarqube-scan-action@v4.1.0
+              env:
+                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+            - name: Fail if any test suite failed
+              if: ${{ always() }}
+              run: |
+                  status=0
+                  if [ "${{ steps.dotnet_unit_tests.outcome }}" = "failure" ]; then
+                      echo "❌ .NET unit tests failed"
+                      status=1
+                  fi
+                  if [ "${{ steps.dotnet_integration_tests.outcome }}" = "failure" ]; then
+                      echo "❌ .NET integration tests failed"
+                      status=1
+                  fi
+                  if [ "${{ steps.vitest.outcome }}" = "failure" ]; then
+                      echo "❌ Vitest suite failed"
+                      status=1
+                  fi
+                  if [ $status -ne 0 ]; then
+                      exit $status
+                  fi

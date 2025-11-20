@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2020 Free Software Foundation Europe e.V.
+# SPDX-FileCopyrightText: 2025 Nexa Contributors <contact@nexa.ms>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: REUSE Compliance Check
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main, develop]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    pull-requests: write
+
+jobs:
+    reuse:
+        name: REUSE Compliance Check
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Run REUSE Compliance Check
+              uses: fsfe/reuse-action@v6
+
+            - name: Comment on PR if checks fail
+              if: failure() && github.event_name == 'pull_request'
+              uses: actions/github-script@v8
+              with:
+                  script: |
+                      github.rest.issues.createComment({
+                        issue_number: context.issue.number,
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        body: '❌ REUSE compliance check failed. Please ensure all files have proper SPDX headers.\n\nSee [REUSE Documentation](https://reuse.software/) for more information.'
+                      })
