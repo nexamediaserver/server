@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C730C3F0-6671-4161-95FA-B599E3B99E13}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaMediaServer.API", "src\NexaMediaServer.API\NexaMediaServer.API.csproj", "{4BF34C0D-0CB7-408D-8CF9-7D8AB9DDB06C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaMediaServer.Core", "src\NexaMediaServer.Core\NexaMediaServer.Core.csproj", "{9FFBD0CE-053A-4E91-97FB-A9890DCA2CA1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaMediaServer.Infrastructure", "src\NexaMediaServer.Infrastructure\NexaMediaServer.Infrastructure.csproj", "{0F1AE3E6-D171-47D0-A4E5-F15EA80BF7EE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaMediaServer.Common", "src\NexaMediaServer.Common\NexaMediaServer.Common.csproj", "{51B8361A-60BF-453A-841B-3BA3F4C2FFB6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{421755D6-AC4C-431F-A06E-5A122B2779CE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaMediaServer.Tests.Unit", "tests\NexaMediaServer.Tests.Unit\NexaMediaServer.Tests.Unit.csproj", "{3B5B0A7D-0A7E-4E64-9E9D-6B91A2E8B2B6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaMediaServer.Tests.Integration", "tests\NexaMediaServer.Tests.Integration\NexaMediaServer.Tests.Integration.csproj", "{D2D6BA42-2272-4FD2-83D8-A21186D8B553}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4BF34C0D-0CB7-408D-8CF9-7D8AB9DDB06C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4BF34C0D-0CB7-408D-8CF9-7D8AB9DDB06C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4BF34C0D-0CB7-408D-8CF9-7D8AB9DDB06C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4BF34C0D-0CB7-408D-8CF9-7D8AB9DDB06C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9FFBD0CE-053A-4E91-97FB-A9890DCA2CA1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9FFBD0CE-053A-4E91-97FB-A9890DCA2CA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9FFBD0CE-053A-4E91-97FB-A9890DCA2CA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9FFBD0CE-053A-4E91-97FB-A9890DCA2CA1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0F1AE3E6-D171-47D0-A4E5-F15EA80BF7EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0F1AE3E6-D171-47D0-A4E5-F15EA80BF7EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F1AE3E6-D171-47D0-A4E5-F15EA80BF7EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0F1AE3E6-D171-47D0-A4E5-F15EA80BF7EE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51B8361A-60BF-453A-841B-3BA3F4C2FFB6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51B8361A-60BF-453A-841B-3BA3F4C2FFB6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51B8361A-60BF-453A-841B-3BA3F4C2FFB6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51B8361A-60BF-453A-841B-3BA3F4C2FFB6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B5B0A7D-0A7E-4E64-9E9D-6B91A2E8B2B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B5B0A7D-0A7E-4E64-9E9D-6B91A2E8B2B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B5B0A7D-0A7E-4E64-9E9D-6B91A2E8B2B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B5B0A7D-0A7E-4E64-9E9D-6B91A2E8B2B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D2D6BA42-2272-4FD2-83D8-A21186D8B553}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D2D6BA42-2272-4FD2-83D8-A21186D8B553}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D2D6BA42-2272-4FD2-83D8-A21186D8B553}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D2D6BA42-2272-4FD2-83D8-A21186D8B553}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{4BF34C0D-0CB7-408D-8CF9-7D8AB9DDB06C} = {C730C3F0-6671-4161-95FA-B599E3B99E13}
+		{9FFBD0CE-053A-4E91-97FB-A9890DCA2CA1} = {C730C3F0-6671-4161-95FA-B599E3B99E13}
+		{0F1AE3E6-D171-47D0-A4E5-F15EA80BF7EE} = {C730C3F0-6671-4161-95FA-B599E3B99E13}
+		{51B8361A-60BF-453A-841B-3BA3F4C2FFB6} = {C730C3F0-6671-4161-95FA-B599E3B99E13}
+		{3B5B0A7D-0A7E-4E64-9E9D-6B91A2E8B2B6} = {421755D6-AC4C-431F-A06E-5A122B2779CE}
+		{D2D6BA42-2272-4FD2-83D8-A21186D8B553} = {421755D6-AC4C-431F-A06E-5A122B2779CE}
+	EndGlobalSection
+EndGlobal
