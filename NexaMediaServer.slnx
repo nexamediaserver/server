@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NexaMediaServer.API/NexaMediaServer.API.csproj" />
+    <Project Path="src/NexaMediaServer.Common/NexaMediaServer.Common.csproj" />
+    <Project Path="src/NexaMediaServer.Core/NexaMediaServer.Core.csproj" />
+    <Project Path="src/NexaMediaServer.Infrastructure/NexaMediaServer.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NexaMediaServer.Tests.Integration/NexaMediaServer.Tests.Integration.csproj" />
+    <Project Path="tests/NexaMediaServer.Tests.Unit/NexaMediaServer.Tests.Unit.csproj" />
+  </Folder>
+</Solution>
