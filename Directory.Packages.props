@@ -15,13 +15,13 @@
     <PackageVersion Include="Hangfire.Core" Version="1.8.21" />
     <PackageVersion Include="Hangfire.InMemory" Version="1.0.0" />
     <PackageVersion Include="Hangfire.MaximumConcurrentExecutions" Version="1.1.0" />
-    <PackageVersion Include="HotChocolate.AspNetCore" Version="16.0.0-p.8.22" />
+    <PackageVersion Include="HotChocolate.AspNetCore" Version="16.0.0-p.10.1" />
     <PackageVersion Include="HotChocolate.AspNetCore.Authorization" Version="16.0.0-p.8.22" />
     <PackageVersion Include="libse" Version="4.1.0-alpha7" />
     <PackageVersion Include="HotChocolate.AspNetCore.CommandLine" Version="16.0.0-p.8.22" />
     <PackageVersion Include="HotChocolate.Data" Version="16.0.0-p.8.22" />
     <PackageVersion Include="HotChocolate.Data.EntityFramework" Version="16.0.0-p.8.22" />
-    <PackageVersion Include="HotChocolate.Diagnostics" Version="16.0.0-p.8.22" />
+    <PackageVersion Include="HotChocolate.Diagnostics" Version="16.0.0-p.10.1" />
     <PackageVersion Include="HotChocolate.PersistedOperations.InMemory" Version="16.0.0-p.8.22" />
     <PackageVersion Include="HotChocolate.Types.Analyzers" Version="16.0.0-p.8.22" />
     <PackageVersion Include="Lucene.Net" Version="4.8.0-beta00017" />
