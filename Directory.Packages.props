@@ -11,7 +11,7 @@
     <PackageVersion Include="FFMpegCore" Version="5.4.0" />
     <PackageVersion Include="FluentAssertions" Version="8.8.0" />
     <PackageVersion Include="GreenDonut" Version="16.0.0-p.9.20" />
-    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.21" />
+    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.22" />
     <PackageVersion Include="Hangfire.Core" Version="1.8.21" />
     <PackageVersion Include="Hangfire.InMemory" Version="1.0.0" />
     <PackageVersion Include="Hangfire.MaximumConcurrentExecutions" Version="1.1.0" />
