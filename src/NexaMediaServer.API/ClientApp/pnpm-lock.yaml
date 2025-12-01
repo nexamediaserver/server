@@ -126,8 +126,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0(react@19.2.0)
       react-virtuoso:
-        specifier: ^4.14.0
-        version: 4.14.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: ^4.16.1
+        version: 4.16.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
@@ -4619,8 +4619,8 @@ packages:
       '@types/react':
         optional: true
 
-  react-virtuoso@4.14.1:
-    resolution: {integrity: sha512-NRUF1ak8lY+Tvc6WN9cce59gU+lilzVtOozP+pm9J7iHshLGGjsiAB4rB2qlBPHjFbcXOQpT+7womNHGDUql8w==}
+  react-virtuoso@4.16.1:
+    resolution: {integrity: sha512-V9ZDw7TFspJb02gNWqHyVZvaMaCFaoL30F/tOVepCI12kdLjA2oxFfWvNC66AVJdOH5cwiq8317p2Q9OpG+TDw==}
     peerDependencies:
       react: '>=16 || >=17 || >= 18 || >= 19'
       react-dom: '>=16 || >=17 || >= 18 || >=19'
@@ -10166,7 +10166,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.2
 
-  react-virtuoso@4.14.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+  react-virtuoso@4.16.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
     dependencies:
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
