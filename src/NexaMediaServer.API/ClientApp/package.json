@@ -54,7 +54,7 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-error-boundary": "^6.0.0",
-    "react-virtuoso": "^4.14.0",
+    "react-virtuoso": "^4.16.1",
     "rxjs": "^7.8.1",
     "shaka-player": "^4.16.8",
     "socket.io-client": "^4.7.5",
