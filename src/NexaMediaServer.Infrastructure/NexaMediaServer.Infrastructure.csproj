@@ -43,6 +43,7 @@
     <AdditionalFiles Include="..\..\stylecop.json" Link="stylecop.json" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Hangfire.Core" VersionOverride="1.8.22" />
     <ProjectReference Include="..\NexaMediaServer.Core\NexaMediaServer.Core.csproj" />
     <ProjectReference Include="..\NexaMediaServer.Common\NexaMediaServer.Common.csproj" />
   </ItemGroup>
