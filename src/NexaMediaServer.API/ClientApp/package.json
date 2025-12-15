@@ -35,7 +35,7 @@
     "@t3-oss/env-core": "^0.13.8",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/react-devtools": "^0.8.2",
-    "@tanstack/react-form": "^1.27.1",
+    "@tanstack/react-form": "^1.27.3",
     "@tanstack/react-router": "^1.140.0",
     "@tanstack/react-router-devtools": "^1.140.0",
     "@tanstack/react-virtual": "^3.13.12",
