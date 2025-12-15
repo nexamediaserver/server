@@ -73,7 +73,7 @@
     "@graphql-codegen/schema-ast": "^5.0.0",
     "@graphql-eslint/eslint-plugin": "^4.4.0",
     "@html-eslint/eslint-plugin": "^0.50.0",
-    "@html-eslint/parser": "^0.50.0",
+    "@html-eslint/parser": "^0.51.0",
     "@iconify-json/material-symbols": "^1.2.49",
     "@parcel/watcher": "^2.5.1",
     "@svgr/core": "^8.1.0",

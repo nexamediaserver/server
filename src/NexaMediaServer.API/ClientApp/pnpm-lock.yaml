@@ -178,8 +178,8 @@ importers:
         specifier: ^0.50.0
         version: 0.50.0(eslint@9.39.1(jiti@2.6.1))(jiti@2.6.1)
       '@html-eslint/parser':
-        specifier: ^0.50.0
-        version: 0.50.0(jiti@2.6.1)
+        specifier: ^0.51.0
+        version: 0.51.0(jiti@2.6.1)
       '@iconify-json/material-symbols':
         specifier: ^1.2.49
         version: 1.2.49
@@ -1174,14 +1174,23 @@ packages:
   '@html-eslint/parser@0.50.0':
     resolution: {integrity: sha512-jfeLw99D8qZQpfIrSBiLNPSUqo+yOCQtVZPVIpBJsMda5yfIJ5/OowSpHujAP7rpKpDLMKnlltjHXcNAYSqDWA==}
 
+  '@html-eslint/parser@0.51.0':
+    resolution: {integrity: sha512-0pT5myaJkuR6YwCPEesqLAyTofoJ9iV4wn07aBF6//DppiEBXdMkTMMA2Yt6VyRtJ6la68h81Vg51fWMPtiXHQ==}
+
   '@html-eslint/template-parser@0.50.0':
     resolution: {integrity: sha512-XqPLdrwHo/6h5c1bT4MqlFf5CQ0EhG0QlVsjqzOgMoUXzQZ3OFJXUmudbtcZ8nsiIs/I7tkgCtRuYMB1m4KA1g==}
 
   '@html-eslint/template-syntax-parser@0.50.0':
     resolution: {integrity: sha512-lfl8Gbhm4rjr+lKadQPO4c14NSsmHVlifIjd4pMmtiKnLWxf/4G0x1VXYd5FNsUpqa5YKNF8+z+raI/XwFhbtg==}
 
+  '@html-eslint/template-syntax-parser@0.51.0':
+    resolution: {integrity: sha512-aMDUANg0q4p2/uhTikrms9P6NXlkTs2f/yEAp2MDeB4p5BI+e3ORhLojCCCbARjszXw3INZSVrDEJJezqiOKDA==}
+
   '@html-eslint/types@0.50.0':
     resolution: {integrity: sha512-OamRXU11GoFwCXFc1QZlLHb1LNbBGtxGuq3ON6KZyAYseO+9LrafdxUzBIRF8dHVwNrLTNY3muAPsYqhHf6Llg==}
+
+  '@html-eslint/types@0.51.0':
+    resolution: {integrity: sha512-KMG4UeA2TTYrjUDcqWCBhJbAgjy6I/ALnuetF9imCe93lrlgx918+ODy8kl8RF+HV8WP7A2aqty0VJGLCUIX8A==}
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -6687,6 +6696,15 @@ snapshots:
       - jiti
       - supports-color
 
+  '@html-eslint/parser@0.51.0(jiti@2.6.1)':
+    dependencies:
+      '@html-eslint/template-syntax-parser': 0.51.0(jiti@2.6.1)
+      '@html-eslint/types': 0.51.0(jiti@2.6.1)
+      es-html-parser: 0.3.1
+    transitivePeerDependencies:
+      - jiti
+      - supports-color
+
   '@html-eslint/template-parser@0.50.0(jiti@2.6.1)':
     dependencies:
       '@html-eslint/types': 0.50.0(jiti@2.6.1)
@@ -6702,7 +6720,23 @@ snapshots:
       - jiti
       - supports-color
 
+  '@html-eslint/template-syntax-parser@0.51.0(jiti@2.6.1)':
+    dependencies:
+      '@html-eslint/types': 0.51.0(jiti@2.6.1)
+    transitivePeerDependencies:
+      - jiti
+      - supports-color
+
   '@html-eslint/types@0.50.0(jiti@2.6.1)':
+    dependencies:
+      '@types/estree': 1.0.8
+      es-html-parser: 0.3.1
+      eslint: 9.39.1(jiti@2.6.1)
+    transitivePeerDependencies:
+      - jiti
+      - supports-color
+
+  '@html-eslint/types@0.51.0(jiti@2.6.1)':
     dependencies:
       '@types/estree': 1.0.8
       es-html-parser: 0.3.1
