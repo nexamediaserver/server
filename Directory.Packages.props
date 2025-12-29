@@ -25,7 +25,7 @@
     <PackageVersion Include="HotChocolate.Diagnostics" Version="16.0.0-p.10.17" />
     <PackageVersion Include="HotChocolate.PersistedOperations.InMemory" Version="16.0.0-p.10.17" />
     <PackageVersion Include="HotChocolate.Types.Analyzers" Version="16.0.0-p.10.17" />
-    <PackageVersion Include="HotChocolate.Types.OffsetPagination" Version="16.0.0-p.10.17" />
+    <PackageVersion Include="HotChocolate.Types.OffsetPagination" Version="16.0.0-p.10.22" />
     <PackageVersion Include="libse" Version="4.1.0-alpha8" />
     <PackageVersion Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00017" />
     <PackageVersion Include="Lucene.Net.QueryParser" Version="4.8.0-beta00017" />
