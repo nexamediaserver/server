@@ -17,12 +17,12 @@
     <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.22" />
     <PackageVersion Include="Hangfire.Core" Version="1.8.22" />
     <PackageVersion Include="Hangfire.InMemory" Version="1.0.0" />
-    <PackageVersion Include="HotChocolate.AspNetCore" Version="16.0.0-p.10.17" />
+    <PackageVersion Include="HotChocolate.AspNetCore" Version="16.0.0-p.10.23" />
     <PackageVersion Include="HotChocolate.AspNetCore.Authorization" Version="16.0.0-p.10.17" />
     <PackageVersion Include="HotChocolate.AspNetCore.CommandLine" Version="16.0.0-p.10.17" />
     <PackageVersion Include="HotChocolate.Data.EntityFramework" Version="16.0.0-p.10.17" />
     <PackageVersion Include="HotChocolate.Data" Version="16.0.0-p.10.17" />
-    <PackageVersion Include="HotChocolate.Diagnostics" Version="16.0.0-p.10.17" />
+    <PackageVersion Include="HotChocolate.Diagnostics" Version="16.0.0-p.10.23" />
     <PackageVersion Include="HotChocolate.PersistedOperations.InMemory" Version="16.0.0-p.10.22" />
     <PackageVersion Include="HotChocolate.Types.Analyzers" Version="16.0.0-p.10.17" />
     <PackageVersion Include="HotChocolate.Types.OffsetPagination" Version="16.0.0-p.10.17" />
