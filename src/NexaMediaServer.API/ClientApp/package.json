@@ -77,7 +77,7 @@
     "@graphql-codegen/client-preset": "^5.2.2",
     "@graphql-codegen/schema-ast": "^5.0.0",
     "@graphql-eslint/eslint-plugin": "^4.4.0",
-    "@html-eslint/eslint-plugin": "^0.50.0",
+    "@html-eslint/eslint-plugin": "^0.52.1",
     "@html-eslint/parser": "^0.50.0",
     "@iconify-json/material-symbols": "^1.2.50",
     "@parcel/watcher": "^2.5.1",
