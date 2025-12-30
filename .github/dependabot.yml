@@ -1,5 +1,6 @@
 version: 2
 updates:
+  # .NET NuGet packages
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
@@ -7,7 +8,64 @@ updates:
       day: "monday"
       time: "04:00"
       timezone: "Etc/UTC"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
+    # Grouped updates to reduce PR noise
+    groups:
+      # Group all Microsoft packages together
+      microsoft-dependencies:
+        patterns:
+          - "Microsoft.*"
+          - "System.*"
+      # Group HotChocolate GraphQL packages
+      hotchocolate:
+        patterns:
+          - "HotChocolate.*"
+          - "GreenDonut"
+      # Group OpenTelemetry observability packages
+      opentelemetry:
+        patterns:
+          - "OpenTelemetry.*"
+      # Group Serilog logging packages
+      serilog:
+        patterns:
+          - "Serilog.*"
+      # Group Hangfire background job packages
+      hangfire:
+        patterns:
+          - "Hangfire.*"
+      # Group test frameworks and tools
+      test-dependencies:
+        patterns:
+          - "xunit*"
+          - "coverlet.*"
+          - "FluentAssertions"
+          - "Bogus"
+          - "Snapshooter.*"
+          - "Microsoft.NET.Test.Sdk"
+          - "Microsoft.AspNetCore.Mvc.Testing"
+      # Group analyzers and code quality tools
+      analyzers:
+        patterns:
+          - "*.Analyzers"
+          - "Roslynator.*"
+          - "StyleCop.*"
+          - "SonarAnalyzer.*"
+      # Group Lucene.Net packages
+      lucene:
+        patterns:
+          - "Lucene.Net*"
+    # Customize commit messages
+    commit-message:
+      prefix: "deps(nuget)"
+      include: "scope"
+    # Use rebase strategy to avoid merge commits
+    rebase-strategy: "auto"
+    # Add labels for easy filtering
+    labels:
+      - "dependencies"
+      - "dotnet"
+
+  # Frontend npm packages
   - package-ecosystem: "npm"
     directory: "/src/NexaMediaServer.API/ClientApp"
     schedule:
@@ -16,7 +74,69 @@ updates:
       time: "05:00"
       timezone: "Etc/UTC"
     versioning-strategy: increase
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
+    # Grouped updates to reduce PR noise
+    groups:
+      # Group Radix UI components together
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      # Group TanStack libraries
+      tanstack:
+        patterns:
+          - "@tanstack/*"
+      # Group Tailwind CSS related packages
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "autoprefixer"
+          - "postcss"
+      # Group development tools
+      dev-tools:
+        patterns:
+          - "@types/*"
+          - "typescript"
+          - "vite"
+          - "@vitejs/*"
+          - "vitest"
+          - "eslint"
+          - "eslint-*"
+          - "@eslint/*"
+          - "prettier"
+          - "prettier-*"
+      # Group GraphQL related packages
+      graphql:
+        patterns:
+          - "graphql"
+          - "graphql-*"
+          - "@graphql-*"
+          - "@apollo/*"
+          - "@graphql-codegen/*"
+      # Group React core and related packages
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "react-*"
+    # Customize commit messages
+    commit-message:
+      prefix: "deps(npm)"
+      include: "scope"
+    # Use rebase strategy to avoid merge commits
+    rebase-strategy: "auto"
+    # Add labels for easy filtering
+    labels:
+      - "dependencies"
+      - "frontend"
+    # Ignore major version bumps for stable packages (review manually)
+    ignore:
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -25,3 +145,18 @@ updates:
       time: "06:00"
       timezone: "Etc/UTC"
     open-pull-requests-limit: 5
+    # Group all GitHub Actions updates together
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    # Customize commit messages
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    # Use rebase strategy to avoid merge commits
+    rebase-strategy: "auto"
+    # Add labels for easy filtering
+    labels:
+      - "dependencies"
+      - "github-actions"
