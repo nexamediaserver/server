@@ -93,7 +93,7 @@
     "@typescript-eslint/parser": "^8.51.0",
     "@vitejs/plugin-react": "^5.1.2",
     "@vitejs/plugin-react-swc": "^4.2.2",
-    "@vitest/coverage-v8": "^4.0.15",
+    "@vitest/coverage-v8": "^4.0.16",
     "babel-plugin-react-compiler": "^19.1.0-rc.3",
     "baseline-browser-mapping": "^2.9.8",
     "eslint": "^9.39.2",
