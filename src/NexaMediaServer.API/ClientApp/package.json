@@ -121,7 +121,7 @@
     "eslint-plugin-testing-library": "^7.15.4",
     "eslint-plugin-unicorn": "^62.0.0",
     "eslint-plugin-unused-imports": "^4.2.0",
-    "globals": "^16.5.0",
+    "globals": "^17.0.0",
     "jiti": "^2.5.1",
     "jsdom": "^27.4.0",
     "msw": "^2.12.7",
