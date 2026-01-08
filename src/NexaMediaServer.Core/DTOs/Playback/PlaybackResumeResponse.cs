@@ -29,4 +29,34 @@ public sealed class PlaybackResumeResponse
     /// Gets or sets the current capability profile version for the session.
     /// </summary>
     public int CapabilityProfileVersion { get; set; }
+
+    /// <summary>
+    /// Gets or sets the serialized playback plan for the current item.
+    /// </summary>
+    public string StreamPlanJson { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the URL the client should load to resume playback.
+    /// </summary>
+    public string PlaybackUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the trickplay track URL when available.
+    /// </summary>
+    public string? TrickplayUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the duration of the media item in milliseconds when known.
+    /// </summary>
+    public long? DurationMs { get; set; }
+
+    /// <summary>
+    /// Gets or sets the last known playhead position in milliseconds.
+    /// </summary>
+    public long PlayheadMs { get; set; }
+
+    /// <summary>
+    /// Gets or sets the last reported playback state.
+    /// </summary>
+    public string State { get; set; } = "playing";
 }

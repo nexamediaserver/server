@@ -52,7 +52,7 @@ export function NotificationButton() {
               <Badge variant="secondary">{activeJobsArray.length}</Badge>
             )}
           </div>
-          <div className="max-h-[400px] space-y-4 overflow-y-auto">
+          <div className="max-h-100 space-y-4 overflow-y-auto">
             {!hasActiveJobs ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
                 No activity

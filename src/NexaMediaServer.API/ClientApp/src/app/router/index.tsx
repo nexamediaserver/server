@@ -15,6 +15,7 @@ import { registerContentSourcesRoutes } from '@/features/content-sources/routes'
 import { HomePage } from '@/features/hubs/pages/HomePage'
 import { createMetadataRoutes } from '@/features/metadata/routes'
 import { createSearchRoutes } from '@/features/search'
+import { registerSettingsRoutes } from '@/features/settings'
 import { Toaster } from '@/shared/components/ui/sonner'
 
 import type { RouterContext } from './types'
@@ -22,6 +23,25 @@ import type { RouterContext } from './types'
 import { AppLayout } from '../layout'
 import { APP_SHELL_SCROLL_REGION_ID } from '../layout/constants'
 import { ErrorHandler } from '../layout/ErrorHandler'
+
+// Helper to get stored user from localStorage
+function getStoredUser(): null | { roles?: string[] } {
+  try {
+    const raw = localStorage.getItem('auth:user')
+    if (raw && raw !== 'null') {
+      return JSON.parse(raw) as null | { roles?: string[] }
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return null
+}
+
+// Check if user has Administrator role
+function isUserAdmin(): boolean {
+  const user = getStoredUser()
+  return user?.roles?.includes('Administrator') ?? false
+}
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -78,6 +98,17 @@ const appLayoutRoute = createRoute({
   id: 'app-layout',
 })
 
+// Admin route guard - restricts access to Administrator users only
+const adminRoute = createRoute({
+  beforeLoad: () => {
+    if (!isUserAdmin()) {
+      throw redirect({ to: '/' })
+    }
+  },
+  getParentRoute: () => appLayoutRoute,
+  id: 'admin',
+})
+
 const indexRoute = createRoute({
   component: HomePage,
   getParentRoute: () => appLayoutRoute,
@@ -90,10 +121,16 @@ const appFeatureRoutes = [
   ...createSearchRoutes({ appLayoutRoute }),
 ]
 
+const settingsRoutes = registerSettingsRoutes({ adminRoute })
+
 const routeTree = rootRoute.addChildren([
   ...authFeatureRoutes,
   authenticatedRoute.addChildren([
-    appLayoutRoute.addChildren([indexRoute, ...appFeatureRoutes]),
+    appLayoutRoute.addChildren([
+      indexRoute,
+      ...appFeatureRoutes,
+      adminRoute.addChildren([...settingsRoutes]),
+    ]),
   ]),
 ])
 

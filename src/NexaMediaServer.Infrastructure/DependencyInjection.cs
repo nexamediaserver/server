@@ -3,8 +3,10 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+
 using NexaMediaServer.Core.Configuration;
 using NexaMediaServer.Core.DTOs.Metadata;
+using NexaMediaServer.Core.Playback;
 using NexaMediaServer.Core.Repositories;
 using NexaMediaServer.Core.Services;
 using NexaMediaServer.Core.Services.Authentication;
@@ -17,6 +19,9 @@ using NexaMediaServer.Infrastructure.Services.Agents;
 using NexaMediaServer.Infrastructure.Services.Analysis;
 using NexaMediaServer.Infrastructure.Services.Authentication;
 using NexaMediaServer.Infrastructure.Services.Credits;
+using NexaMediaServer.Infrastructure.Services.FFmpeg;
+using NexaMediaServer.Infrastructure.Services.FFmpeg.Filters;
+using NexaMediaServer.Infrastructure.Services.Fields;
 using NexaMediaServer.Infrastructure.Services.Hubs;
 using NexaMediaServer.Infrastructure.Services.Ignore;
 using NexaMediaServer.Infrastructure.Services.Images;
@@ -27,6 +32,8 @@ using NexaMediaServer.Infrastructure.Services.Resolvers;
 using NexaMediaServer.Infrastructure.Services.Search;
 using NexaMediaServer.Infrastructure.Services.Trickplay;
 using NexaMediaServer.Infrastructure.Services.Watchers;
+
+using Playback = NexaMediaServer.Infrastructure.Services.Playback;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -69,6 +76,28 @@ public static class DependencyInjection
             sp.GetRequiredService<ApplicationPaths>()
         );
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ApplicationPaths>());
+
+        // FFmpeg validation and capability detection (must run early, before transcoding services)
+        builder.Services.AddHostedService<FFmpegValidationService>();
+        builder.Services.AddSingleton<FFmpegCapabilitiesService>();
+        builder.Services.AddSingleton<IFfmpegCapabilities>(sp =>
+            sp.GetRequiredService<FFmpegCapabilitiesService>()
+        );
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<FFmpegCapabilitiesService>());
+
+        // Video filter pipeline and filters
+        builder.Services.AddTransient<VideoFilterPipeline>();
+        builder.Services.AddTransient<IVideoFilter, ColorPropertiesFilter>();
+        builder.Services.AddTransient<IVideoFilter, DeinterlaceFilter>();
+        builder.Services.AddTransient<IVideoFilter, TransposeFilter>();
+        builder.Services.AddTransient<IVideoFilter, HardwareUploadFilter>();
+        builder.Services.AddTransient<IVideoFilter, HardwareDownloadFilter>();
+        builder.Services.AddTransient<IVideoFilter, ScaleFilter>();
+        builder.Services.AddTransient<IVideoFilter, TonemapFilter>();
+        builder.Services.AddTransient<IVideoFilter, FormatFilter>();
+
+        // Filter chain validator
+        builder.Services.AddSingleton<IFilterChainValidator, FilterChainValidator>();
 
         builder.Services.AddPooledDbContextFactory<MediaServerContext>(
             (serviceProvider, options) =>
@@ -131,6 +160,10 @@ public static class DependencyInjection
 
         builder.Services.AddMemoryCache();
 
+        // HTTP client infrastructure for remote metadata agents
+        builder.Services.AddTransient<MetadataAgentTelemetryHandler>();
+        builder.Services.AddSingleton<IRemoteMetadataHttpClientFactory, RemoteMetadataHttpClientFactory>();
+
         builder.Services.AddHttpClient();
 
         builder.Services.AddEasyCaching(options =>
@@ -138,9 +171,21 @@ public static class DependencyInjection
             options.UseInMemory("default");
         });
 
-        builder.Services.AddSingleton<IFfmpegCommandBuilder, FfmpegCommandBuilder>();
+        builder.Services.AddTransient<FfmpegCommandBuilder>();
+        builder.Services.AddTransient<IFfmpegCommandBuilder>(sp =>
+            sp.GetRequiredService<FfmpegCommandBuilder>()
+        );
+        builder.Services.AddSingleton<ITranscodeJobCache, Playback.TranscodeJobCache>();
         builder.Services.AddScoped<IDashTranscodeService, DashTranscodeService>();
+        builder.Services.AddScoped<IHlsTranscodeService, Playback.HlsTranscodeService>();
+        builder.Services.AddSingleton<ITranscodeJobManager, Playback.TranscodeJobManager>();
+        builder.Services.AddSingleton<IAbrLadderGenerator, Playback.AbrLadderGenerator>();
+        builder.Services.AddSingleton<IProfileConditionEvaluator, Playback.ProfileConditionEvaluator>();
+        builder.Services.AddSingleton<ISubtitleConversionService, Playback.SubtitleConversionService>();
+        builder.Services.AddHostedService<Playback.TranscodeJobStartupService>();
 
+        builder.Services.AddScoped<IServerSettingRepository, ServerSettingRepository>();
+        builder.Services.AddScoped<IServerSettingService, ServerSettingService>();
         builder.Services.AddScoped<IMetadataItemRepository, MetadataItemRepository>();
         builder.Services.AddScoped<ILibrarySectionRepository, LibrarySectionRepository>();
         builder.Services.AddScoped<ISectionLocationRepository, SectionLocationRepository>();
@@ -152,6 +197,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<ISessionRepository, SessionRepository>();
         builder.Services.AddScoped<ISessionService, SessionService>();
         builder.Services.AddScoped<IPlaybackService, PlaybackService>();
+        builder.Services.AddScoped<IPlaylistService, PlaylistService>();
 
         builder.Services.AddScoped<ApplicationDbContextInitialiser>();
 
@@ -184,17 +230,24 @@ public static class DependencyInjection
         builder.Services.AddScoped<ILibraryScannerService, LibraryScannerService>();
         builder.Services.AddScoped<IMetadataService, MetadataService>();
         builder.Services.AddScoped<IMetadataRefreshService, MetadataRefreshService>();
+        builder.Services.AddScoped<IMetadataDeduplicationService, MetadataDeduplicationService>();
 
         // Metadata processing services (refactored from MetadataService)
+        builder.Services.AddSingleton<ILockedFieldEnforcer, LockedFieldEnforcer>();
         builder.Services.AddScoped<ICreditService, CreditService>();
         builder.Services.AddScoped<IImageOrchestrationService, ImageOrchestrationService>();
+        builder.Services.AddScoped<ICollectionImageOrchestrator, CollectionImageOrchestrator>();
+        builder.Services.AddScoped<CollectionImageProvider>();
         builder.Services.AddScoped<ISidecarMetadataService, SidecarMetadataService>();
         builder.Services.AddScoped<IFileAnalysisOrchestrator, FileAnalysisOrchestrator>();
         builder.Services.AddScoped<IMetadataRefreshOrchestrator, MetadataRefreshOrchestrator>();
 
         // Genre and tag services
-        builder.Services.AddSingleton<IGenreNormalizationService, GenreNormalizationService>();
-        builder.Services.AddSingleton<ITagModerationService, TagModerationService>();
+        builder.Services.AddScoped<IGenreNormalizationService, GenreNormalizationService>();
+        builder.Services.AddScoped<ITagModerationService, TagModerationService>();
+
+        // Transcode settings service
+        builder.Services.AddScoped<TranscodeSettingsService>();
 
         // Content rating service
         builder.Services.AddSingleton<IContentRatingService, ContentRatingService>();
@@ -203,6 +256,8 @@ public static class DependencyInjection
         builder.Services.AddSingleton<IJobProgressReporter, JobProgressReporter>();
         builder.Services.AddSingleton<JobStateNotificationFilter>();
         builder.Services.AddHostedService<JobNotificationFlushService>();
+
+        builder.Services.AddScoped<PlaybackCleanupJob>();
 
         // Scan recovery service for resuming interrupted scans on startup
         builder.Services.AddHostedService<ScanRecoveryService>();
@@ -216,6 +271,10 @@ public static class DependencyInjection
         // Hub services for themed content discovery
         builder.Services.AddSingleton<IHubDefinitionProvider, HubDefinitionProvider>();
         builder.Services.AddScoped<IHubService, HubService>();
+
+        // Detail field services for item detail page customization
+        builder.Services.AddSingleton<IDetailFieldDefinitionProvider, DetailFieldDefinitionProvider>();
+        builder.Services.AddScoped<IDetailFieldService, DetailFieldService>();
 
         // Search services for full-text search using Lucene.NET
         builder.Services.AddSingleton<LuceneSearchService>();

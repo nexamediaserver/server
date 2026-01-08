@@ -5,8 +5,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+
 using NexaMediaServer.Core.DTOs.Metadata;
+using NexaMediaServer.Core.Enums;
 using NexaMediaServer.Infrastructure.Services.Metadata;
+using NexaMediaServer.Infrastructure.Services.Music;
 using NexaMediaServer.Infrastructure.Services.Resolvers;
 
 namespace NexaMediaServer.Infrastructure.Services.Pipeline.Stages;
@@ -79,6 +82,12 @@ public sealed partial class LocalMetadataStage
             Show => new Show(),
             Season => new Season(),
             Episode => new Episode(),
+            Track => new Track(),
+            Recording => new Recording(),
+            AlbumRelease => new AlbumRelease(),
+            AlbumReleaseGroup => new AlbumReleaseGroup(),
+            AlbumMedium => new AlbumMedium(),
+            AudioWork => new AudioWork(),
             _ => new MetadataBaseItem(),
         };
 
@@ -100,7 +109,17 @@ public sealed partial class LocalMetadataStage
         );
         target.ContentRatingAge = source.ContentRatingAge ?? target.ContentRatingAge;
         target.ReleaseDate = source.ReleaseDate ?? target.ReleaseDate;
-        target.Year = source.Year ?? target.Year;
+
+        // Year is derived from ReleaseDate when ReleaseDate is provided
+        // If both are provided and mismatch, prefer year from ReleaseDate
+        var yearToAssign = source.Year ?? target.Year;
+        if (source.ReleaseDate.HasValue)
+        {
+            // Always derive from ReleaseDate when it's available
+            yearToAssign = source.ReleaseDate.Value.Year;
+        }
+
+        target.Year = yearToAssign;
         target.Index = source.Index ?? target.Index;
         target.AbsoluteIndex = source.AbsoluteIndex ?? target.AbsoluteIndex;
         target.Duration = source.Duration ?? target.Duration;
@@ -110,6 +129,18 @@ public sealed partial class LocalMetadataStage
         target.ArtHash = PreferOptionalString(source.ArtHash, target.ArtHash);
         target.LogoUri = PreferOptionalString(source.LogoUri, target.LogoUri);
         target.LogoHash = PreferOptionalString(source.LogoHash, target.LogoHash);
+
+        // Merge ExtraFields (source values take precedence)
+        foreach (var kvp in source.ExtraFields)
+        {
+            target.ExtraFields[kvp.Key] = kvp.Value;
+        }
+
+        // Merge PendingExternalIds (union)
+        foreach (var externalId in source.PendingExternalIds.Where(e => !target.PendingExternalIds.Contains(e)))
+        {
+            target.PendingExternalIds.Add(externalId);
+        }
     }
 
     private static List<PersonCredit>? MergeCredits(
@@ -292,6 +323,79 @@ public sealed partial class LocalMetadataStage
         }
     }
 
+    /// <summary>
+    /// Applies music-specific hints from embedded/sidecar metadata to the resolved item.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method processes MusicBrainz Picard tags and other music metadata, mapping them
+    /// to the item's ExtraFields (for type-specific data like release type, BPM, classical
+    /// music work information) and PendingExternalIds (for ISRCs, barcodes, MBIDs).
+    /// </para>
+    /// </remarks>
+    private static void ApplyMusicHints(
+        MetadataBaseItem resolved,
+        IReadOnlyDictionary<string, object>? hints)
+    {
+        if (hints is null || hints.Count == 0)
+        {
+            return;
+        }
+
+        // Apply type-specific hints
+        switch (resolved)
+        {
+            case Track track:
+                MusicHintsProcessor.ApplyHintsToTrack(track, hints);
+                break;
+
+            case Recording recording:
+                // Recording shares track-level hints - apply to MetadataBaseItem
+                ApplyTrackHintsToItem(recording, hints);
+                break;
+
+            case AlbumRelease release:
+                MusicHintsProcessor.ApplyHintsToAlbumRelease(release, hints);
+                break;
+
+            case AlbumReleaseGroup releaseGroup:
+                MusicHintsProcessor.ApplyHintsToAlbumReleaseGroup(releaseGroup, hints);
+                break;
+
+            case AlbumMedium medium:
+                MusicHintsProcessor.ApplyHintsToAlbumMedium(medium, hints);
+                break;
+
+            case AudioWork work:
+                MusicHintsProcessor.ApplyHintsToAudioWork(work, hints);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Applies track-level hints to any MetadataBaseItem (used for Recording which shares Track's hint structure).
+    /// </summary>
+    private static void ApplyTrackHintsToItem(
+        MetadataBaseItem item,
+        IReadOnlyDictionary<string, object>? hints)
+    {
+        // Create a temporary Track to extract hints, then copy to the item
+        var tempTrack = new Track();
+        MusicHintsProcessor.ApplyHintsToTrack(tempTrack, hints);
+
+        // Copy ExtraFields from temp to target
+        foreach (var kvp in tempTrack.ExtraFields)
+        {
+            item.ExtraFields[kvp.Key] = kvp.Value;
+        }
+
+        // Copy PendingExternalIds (avoiding duplicates)
+        foreach (var extId in tempTrack.PendingExternalIds.Where(e => !item.PendingExternalIds.Contains(e)))
+        {
+            item.PendingExternalIds.Add(extId);
+        }
+    }
+
     private MetadataBaseItem ApplyLocalMetadata(
         MetadataBaseItem resolved,
         SidecarParseResult? sidecar,
@@ -300,6 +404,11 @@ public sealed partial class LocalMetadataStage
     {
         this.ApplyOverlay(resolved, embedded?.Metadata);
         this.ApplyOverlay(resolved, sidecar?.Metadata);
+
+        // Apply music-specific hints to ExtraFields and PendingExternalIds
+        var mergedHints = MergeHints(embedded?.Hints, sidecar?.Hints);
+        ApplyMusicHints(resolved, mergedHints);
+
         return resolved;
     }
 
@@ -342,7 +451,17 @@ public sealed partial class LocalMetadataStage
         }
 
         target.ReleaseDate = overlay.ReleaseDate ?? target.ReleaseDate;
-        target.Year = overlay.Year ?? target.Year;
+
+        // Year is derived from ReleaseDate when ReleaseDate is provided
+        // If both are provided and mismatch, prefer year from ReleaseDate
+        var yearToAssign = overlay.Year ?? target.Year;
+        if (overlay.ReleaseDate.HasValue)
+        {
+            // Always derive from ReleaseDate when it's available
+            yearToAssign = overlay.ReleaseDate.Value.Year;
+        }
+
+        target.Year = yearToAssign;
         target.Index = overlay.Index ?? target.Index;
         target.AbsoluteIndex = overlay.AbsoluteIndex ?? target.AbsoluteIndex;
         target.Duration = overlay.Duration ?? target.Duration;

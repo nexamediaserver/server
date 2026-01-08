@@ -3,10 +3,14 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+
 using Ardalis.GuardClauses;
+
 using Hangfire;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
@@ -39,6 +43,7 @@ public partial class LibraryScannerService : ILibraryScannerService
     private readonly ChangeDetectionStage changeDetectionStage;
     private readonly ResolveItemsStage resolveItemsStage;
     private readonly LocalMetadataStage localMetadataStage;
+    private readonly IMetadataDeduplicationService metadataDeduplicationService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LibraryScannerService"/> class.
@@ -56,6 +61,7 @@ public partial class LibraryScannerService : ILibraryScannerService
     /// <param name="changeDetectionStage">Pipeline stage that marks unchanged files.</param>
     /// <param name="resolveItemsStage">Pipeline stage that resolves files to domain items.</param>
     /// <param name="localMetadataStage">Pipeline stage that extracts local metadata.</param>
+    /// <param name="metadataDeduplicationService">Service for metadata deduplication cache management.</param>
     public LibraryScannerService(
         ILibrarySectionRepository libraryRepository,
         ILibraryScanRepository scanRepository,
@@ -69,7 +75,8 @@ public partial class LibraryScannerService : ILibraryScannerService
         DirectoryTraversalStage directoryTraversalStage,
         ChangeDetectionStage changeDetectionStage,
         ResolveItemsStage resolveItemsStage,
-        LocalMetadataStage localMetadataStage
+        LocalMetadataStage localMetadataStage,
+        IMetadataDeduplicationService metadataDeduplicationService
     )
     {
         this.libraryRepository = libraryRepository;
@@ -85,6 +92,7 @@ public partial class LibraryScannerService : ILibraryScannerService
         this.changeDetectionStage = changeDetectionStage;
         this.resolveItemsStage = resolveItemsStage;
         this.localMetadataStage = localMetadataStage;
+        this.metadataDeduplicationService = metadataDeduplicationService;
     }
 
     /// <inheritdoc />
@@ -433,11 +441,23 @@ public partial class LibraryScannerService : ILibraryScannerService
 
         const int batchSize = 200;
         const int progressReportInterval = 50;
+        const int gcPressureReliefInterval = 10000; // Trigger GC every 10k files to prevent OOM
         const int updatedCount = 0; // reserved for future updates logic
         var addedCount = 0;
         var removedCount = 0;
         var pending = new List<MetadataBaseItem>(batchSize);
-        var scannedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Use a more memory-efficient approach for tracking scanned paths in large libraries:
+        // Instead of keeping all paths in memory, we'll mark them as seen in the existing
+        // paths set (which we already loaded), then remaining unmarked paths are deletions.
+        // First, get the existing paths from cache
+        var existingPathsForTracking =
+            this.changeDetectionStage.GetCachedPaths(library.Id)
+            ?? await this.mediaPartRepository.GetFilePathsByLibraryIdAsync(
+                library.Id,
+                cancellationToken
+            );
+
         var lastProgressReport = 0;
 
         var pipeline = ScanPipeline
@@ -463,8 +483,11 @@ public partial class LibraryScannerService : ILibraryScannerService
                 .WithCancellation(cancellationToken)
         )
         {
-            scannedPaths.Add(item.File.Path);
             scan.TotalFiles++;
+
+            // Remove from existing paths set to mark as "still present"
+            // This is memory-efficient as we modify the existing set in-place
+            existingPathsForTracking.Remove(item.File.Path);
 
             // Report progress every 50 files to avoid excessive updates
             if (scan.TotalFiles - lastProgressReport >= progressReportInterval)
@@ -478,6 +501,16 @@ public partial class LibraryScannerService : ILibraryScannerService
                     cancellationToken
                 );
             }
+
+            // Periodically trigger GC to prevent OOM on large libraries.
+            // This is a trade-off: slightly slower scans but prevents the OS from killing the process.
+            // S1215: GC.Collect is intentional here to prevent OOM during large library scans.
+#pragma warning disable S1215
+            if (scan.TotalFiles % gcPressureReliefInterval == 0)
+            {
+                GC.Collect(generation: 1, mode: GCCollectionMode.Optimized, blocking: false);
+            }
+#pragma warning restore S1215
 
             if (item.IsUnchanged)
             {
@@ -510,22 +543,13 @@ public partial class LibraryScannerService : ILibraryScannerService
         }
 
         // Reuse cached paths from ChangeDetectionStage to avoid duplicate database query
-        var existingPaths =
-            this.changeDetectionStage.GetCachedPaths(library.Id)
-            ?? await this.mediaPartRepository.GetFilePathsByLibraryIdAsync(
-                library.Id,
-                cancellationToken
-            );
-
+        // At this point, existingPathsForTracking contains only files that were NOT scanned
+        // (we removed all scanned files from the set during iteration)
         var deleteChunk = new List<string>(2000);
-        foreach (var existing in existingPaths)
-        {
-            if (scannedPaths.Contains(existing))
-            {
-                continue;
-            }
 
-            deleteChunk.Add(existing);
+        foreach (var pathToDelete in existingPathsForTracking)
+        {
+            deleteChunk.Add(pathToDelete);
             if (deleteChunk.Count >= 2000)
             {
                 removedCount += await this.mediaPartRepository.SoftDeleteByFilePathsAsync(
@@ -545,10 +569,27 @@ public partial class LibraryScannerService : ILibraryScannerService
             deleteChunk.Clear();
         }
 
+        // Clear the cache to free memory after scan completes
+        this.changeDetectionStage.ClearCache(library.Id);
+
+        // Clear metadata deduplication cache to prevent unbounded growth
+        this.metadataDeduplicationService.ClearCache();
+
+        // Clear the tracking set to free memory
+        existingPathsForTracking.Clear();
+
         scan.ItemsAdded = addedCount;
         scan.ItemsUpdated = updatedCount;
         scan.ItemsRemoved = removedCount;
         await this.scanRepository.UpdateAsync(scan);
+
+        // Schedule collection image generation after a delay to allow metadata refresh jobs
+        // to complete and generate child thumbnails. This job will create collage thumbnails
+        // for collection-type items (PhotoAlbum, PictureSet, etc.) in the library.
+        this.jobClient.Schedule<ICollectionImageOrchestrator>(
+            svc => svc.GenerateCollectionImagesForLibraryAsync(library.Id, CancellationToken.None),
+            TimeSpan.FromMinutes(2)
+        );
     }
 
     private async Task InsertBatchAsync(
@@ -556,13 +597,45 @@ public partial class LibraryScannerService : ILibraryScannerService
         CancellationToken cancellationToken
     )
     {
-        await this.metadataItemRepository.BulkInsertAsync(batch, cancellationToken);
-
+        // Pre-size list based on batch size (assumes ~2x expansion for children on average)
+        var flattened = new List<MetadataBaseItem>(batch.Count * 2);
         foreach (var item in batch)
         {
+            FlattenMetadataLocal(item, flattened);
+        }
+
+        await this.metadataItemRepository.BulkInsertAsync(batch, cancellationToken);
+
+        // Enqueue metadata refresh jobs for each unique UUID
+        foreach (var uuid in flattened.Select(m => m.Uuid).Distinct())
+        {
             this.metadataJobClient.Enqueue<MetadataService>(svc =>
-                svc.RefreshMetadataAsync(item.Uuid)
+                svc.RefreshMetadataAsync(uuid)
             );
+        }
+
+        // Clear to help GC reclaim memory faster
+        flattened.Clear();
+
+        static void FlattenMetadataLocal(
+            MetadataBaseItem item,
+            ICollection<MetadataBaseItem> flatList
+        )
+        {
+            if (item.Uuid == Guid.Empty)
+            {
+                item.Uuid = Guid.NewGuid();
+            }
+
+            flatList.Add(item);
+
+            if (item.Children is { Count: > 0 })
+            {
+                foreach (var child in item.Children)
+                {
+                    FlattenMetadataLocal(child, flatList);
+                }
+            }
         }
     }
 }

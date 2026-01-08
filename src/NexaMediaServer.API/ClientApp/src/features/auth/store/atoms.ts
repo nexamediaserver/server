@@ -12,6 +12,12 @@ export const authUserAtom = atomWithStorage<null | PublicUser>(
   null,
 )
 
+/** Derived atom indicating if the current user has Administrator role */
+export const isAdminAtom = atom((get) => {
+  const user = get(authUserAtom)
+  return user?.roles?.includes('Administrator') ?? false
+})
+
 /** Access token (persisted to localStorage) */
 export const authAccessTokenAtom = atomWithStorage<null | string>(
   'auth:accessToken',

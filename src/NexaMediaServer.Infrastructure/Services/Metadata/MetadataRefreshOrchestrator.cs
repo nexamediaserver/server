@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Diagnostics;
+
 using Hangfire;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Common;
 using NexaMediaServer.Core.DTOs;
 using NexaMediaServer.Core.Entities;
@@ -84,9 +87,15 @@ public sealed partial class MetadataRefreshOrchestrator : IMetadataRefreshOrches
         "S3776",
         Justification = "Orchestrates concurrent enrichment stages; complexity inherent to coordination."
     )]
-    public async Task RefreshMetadataAsync(Guid metadataItemUuid, bool skipAnalysis = false)
+    public async Task RefreshMetadataAsync(
+        Guid metadataItemUuid,
+        bool skipAnalysis = false,
+        IEnumerable<string>? overrideFields = null)
     {
         this.LogRefreshMetadataStarted(metadataItemUuid);
+
+        // Materialize overrideFields to avoid multiple enumeration
+        var overrideFieldsList = overrideFields?.ToList();
 
         var item = await this
             .dbContext.MetadataItems.Where(m => m.Uuid == metadataItemUuid)
@@ -132,6 +141,7 @@ public sealed partial class MetadataRefreshOrchestrator : IMetadataRefreshOrches
         var sidecarTask = this.sidecarMetadataService.ExtractLocalMetadataAsync(
             item,
             library,
+            overrideFieldsList,
             CancellationToken.None
         );
         var agentsTask = this.RunMetadataAgentsInternalAsync(
@@ -199,6 +209,7 @@ public sealed partial class MetadataRefreshOrchestrator : IMetadataRefreshOrches
                     item,
                     agentPeople,
                     agentGroups,
+                    overrideFieldsList,
                     CancellationToken.None
                 )
                 .ConfigureAwait(false);
@@ -209,6 +220,7 @@ public sealed partial class MetadataRefreshOrchestrator : IMetadataRefreshOrches
                 item,
                 agentResults,
                 sidecarResult,
+                overrideFieldsList,
                 CancellationToken.None
             )
             .ConfigureAwait(false);
@@ -423,36 +435,66 @@ public sealed partial class MetadataRefreshOrchestrator : IMetadataRefreshOrches
 
     /// <summary>
     /// Processes genres and tags from agent metadata results and sidecars, applying normalization and moderation.
+    /// Respects field locks unless overridden.
     /// </summary>
     private async Task ProcessGenresAndTagsAsync(
         MetadataItem item,
         AgentMetadataResult?[] agentResults,
         SidecarEnrichmentResult sidecarResult,
+        IEnumerable<string>? overrideFields,
         CancellationToken cancellationToken
     )
     {
-        // Collect all genres from agents.
-        var allGenres = agentResults
-            .Where(result => result?.Genres is { Count: > 0 })
-            .SelectMany(result => result!.Genres!)
-            .ToList();
+        var overrideFieldsSet = overrideFields?.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Merge sidecar genres if present.
-        if (sidecarResult.Genres is { Count: > 0 })
+        // Check if genres are locked
+        var genresLocked = item.LockedFields.Contains(
+            Core.Constants.MetadataFieldNames.Genres,
+            StringComparer.OrdinalIgnoreCase
+        ) && overrideFieldsSet?.Contains(Core.Constants.MetadataFieldNames.Genres) != true;
+
+        // Check if tags are locked
+        var tagsLocked = item.LockedFields.Contains(
+            Core.Constants.MetadataFieldNames.Tags,
+            StringComparer.OrdinalIgnoreCase
+        ) && overrideFieldsSet?.Contains(Core.Constants.MetadataFieldNames.Tags) != true;
+
+        // If both are locked, skip processing entirely
+        if (genresLocked && tagsLocked)
         {
-            allGenres.AddRange(sidecarResult.Genres);
+            return;
         }
 
-        // Collect all tags from agents.
-        var allTags = agentResults
-            .Where(result => result?.Tags is { Count: > 0 })
-            .SelectMany(result => result!.Tags!)
-            .ToList();
-
-        // Merge sidecar tags if present.
-        if (sidecarResult.Tags is { Count: > 0 })
+        // Collect all genres from agents (if not locked).
+        var allGenres = new List<string>();
+        if (!genresLocked)
         {
-            allTags.AddRange(sidecarResult.Tags);
+            allGenres = agentResults
+                .Where(result => result?.Genres is { Count: > 0 })
+                .SelectMany(result => result!.Genres!)
+                .ToList();
+
+            // Merge sidecar genres if present.
+            if (sidecarResult.Genres is { Count: > 0 })
+            {
+                allGenres.AddRange(sidecarResult.Genres);
+            }
+        }
+
+        // Collect all tags from agents (if not locked).
+        var allTags = new List<string>();
+        if (!tagsLocked)
+        {
+            allTags = agentResults
+                .Where(result => result?.Tags is { Count: > 0 })
+                .SelectMany(result => result!.Tags!)
+                .ToList();
+
+            // Merge sidecar tags if present.
+            if (sidecarResult.Tags is { Count: > 0 })
+            {
+                allTags.AddRange(sidecarResult.Tags);
+            }
         }
 
         this.LogGenresAndTagsProcessing(item.Uuid, allGenres.Count, allTags.Count);
@@ -511,18 +553,23 @@ public sealed partial class MetadataRefreshOrchestrator : IMetadataRefreshOrches
         // Save new genres/tags to get IDs assigned.
         await this.dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        // Clear existing associations and assign new ones (leaf genres only).
-        item.Genres.Clear();
-        item.Tags.Clear();
-
-        foreach (var genre in genreEntities)
+        // Clear existing associations and assign new ones (only for unlocked collections).
+        if (!genresLocked)
         {
-            item.Genres.Add(genre);
+            item.Genres.Clear();
+            foreach (var genre in genreEntities)
+            {
+                item.Genres.Add(genre);
+            }
         }
 
-        foreach (var tag in tagEntities)
+        if (!tagsLocked)
         {
-            item.Tags.Add(tag);
+            item.Tags.Clear();
+            foreach (var tag in tagEntities)
+            {
+                item.Tags.Add(tag);
+            }
         }
 
         // Save item-to-genre and item-to-tag relationships.

@@ -1,20 +1,17 @@
 import { useMutation } from '@apollo/client/react'
-import { MoreVertical, RefreshCw, Trash2 } from 'lucide-react'
+import { MoreVertical } from 'lucide-react'
 import {
   cloneElement,
   type MouseEvent,
   type ReactElement,
   useState,
 } from 'react'
+import { toast } from 'sonner'
 
+import { librarySectionsQueryDocument } from '@/app/graphql/content-source'
+import { startLibraryScanDocument } from '@/app/graphql/library-scan'
 import { removeLibrarySectionDocument } from '@/app/graphql/library-section'
 import { refreshLibraryMetadataDocument } from '@/app/graphql/metadata-refresh'
-import {
-  type RefreshLibraryMetadataMutation,
-  type RefreshLibraryMetadataMutationVariables,
-  type RemoveLibrarySectionMutation,
-  type RemoveLibrarySectionMutationVariables,
-} from '@/shared/api/graphql/graphql'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { Button } from '@/shared/components/ui/button'
 import {
@@ -40,19 +37,28 @@ export function LibraryActionsMenu({
   onDeleted,
   trigger,
 }: LibraryActionsMenuProps) {
-  const [refreshLibraryMetadata] = useMutation<
-    RefreshLibraryMetadataMutation,
-    RefreshLibraryMetadataMutationVariables
-  >(refreshLibraryMetadataDocument)
-  const [removeLibrarySection] = useMutation<
-    RemoveLibrarySectionMutation,
-    RemoveLibrarySectionMutationVariables
-  >(removeLibrarySectionDocument)
+  const [refreshLibraryMetadata] = useMutation(refreshLibraryMetadataDocument)
+  const [startLibraryScan] = useMutation(startLibraryScanDocument)
+  const [removeLibrarySection] = useMutation(removeLibrarySectionDocument, {
+    refetchQueries: [librarySectionsQueryDocument],
+  })
   const [open, setOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
   const triggerRefresh = () => {
     void refreshLibraryMetadata({
+      variables: { librarySectionId },
+    })
+  }
+
+  const triggerScan = () => {
+    void startLibraryScan({
+      onCompleted: () => {
+        toast.success('Library scan started')
+      },
+      onError: (error) => {
+        toast.error(`Failed to start scan: ${error.message}`)
+      },
       variables: { librarySectionId },
     })
   }
@@ -111,8 +117,22 @@ export function LibraryActionsMenu({
             setOpen(false)
           }}
         >
-          <RefreshCw className="size-4" />
           Refresh All Metadata
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={(event) => {
+            preventEvent(event)
+            triggerScan()
+            setOpen(false)
+          }}
+          onSelect={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            triggerScan()
+            setOpen(false)
+          }}
+        >
+          Scan Library
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -128,7 +148,6 @@ export function LibraryActionsMenu({
             setOpen(false)
           }}
         >
-          <Trash2 className="size-4" />
           Delete Library
         </DropdownMenuItem>
       </DropdownMenuContent>

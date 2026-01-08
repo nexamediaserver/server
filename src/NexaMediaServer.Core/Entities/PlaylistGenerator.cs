@@ -46,7 +46,9 @@ public class PlaylistGenerator : AuditableEntity
     public bool Shuffle { get; set; }
 
     /// <summary>
-    /// Gets or sets the serialized shuffle state used to keep deterministic order.
+    /// Gets or sets the base64-encoded 32-byte random seed used for deterministic shuffle.
+    /// When shuffle is enabled, this seed is used to create a seeded Random instance
+    /// that produces identical shuffle order across materialization calls.
     /// </summary>
     public string? ShuffleState { get; set; }
 

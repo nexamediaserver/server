@@ -27,15 +27,16 @@ export type Scalars = {
   Boolean: { input: boolean; output: boolean }
   Int: { input: number; output: number }
   Float: { input: number; output: number }
+  Any: { input: any; output: any }
   /** The `DateTime` scalar represents an exact point in time. This point in time is specified by having an offset to UTC and does not use a time zone. */
-  DateTime: { input: any; output: any }
+  DateTime: { input: Date; output: Date }
   /** The `LocalDate` scalar represents a date without a time-zone in the ISO-8601 calendar system. */
-  LocalDate: { input: any; output: any }
+  LocalDate: { input: string; output: string }
   /** The `Long` scalar type represents non-fractional signed whole 64-bit numeric values. Long can represent values between -(2^63) and 2^63 - 1. */
-  Long: { input: any; output: any }
-  UUID: { input: any; output: any }
+  Long: { input: BigInt; output: BigInt }
+  UUID: { input: string; output: string }
   /** The `Upload` scalar type represents a file upload. */
-  Upload: { input: any; output: any }
+  Upload: { input: File; output: File }
 }
 
 /** Represents the input required to create a library section. */
@@ -60,6 +61,22 @@ export type AddLibrarySectionPayload = {
   scanId: Scalars['Int']['output']
 }
 
+/** Input for triggering file analysis, GoP-index generation, and trickplay generation for a metadata item. */
+export type AnalyzeItemInput = {
+  /** Gets or sets the metadata item identifier. */
+  itemId: Scalars['ID']['input']
+}
+
+/** GraphQL payload indicating the outcome of an analyze item request. */
+export type AnalyzeItemPayload = {
+  __typename?: 'AnalyzeItemPayload'
+  /** Gets an optional error description for failed requests. */
+  error?: Maybe<Scalars['String']['output']>
+  query: Query
+  /** Gets a value indicating whether the request succeeded. */
+  success: Scalars['Boolean']['output']
+}
+
 /** Defines when a policy shall be executed. */
 export enum ApplyPolicy {
   /** After the resolver was executed. */
@@ -73,6 +90,19 @@ export enum ApplyPolicy {
 export type BooleanOperationFilterInput = {
   eq?: InputMaybe<Scalars['Boolean']['input']>
   neq?: InputMaybe<Scalars['Boolean']['input']>
+}
+
+/** Represents an available root item type option for browsing a library section. */
+export type BrowsableItemType = {
+  __typename?: 'BrowsableItemType'
+  /** Gets the user-facing display name for this item type. */
+  displayName: Scalars['String']['output']
+  /**
+   * Gets the metadata types that this option represents.
+   * When multiple types are present (e.g., Person and Group for Artists),
+   * items of any of these types will be included.
+   */
+  metadataTypes: Array<MetadataType>
 }
 
 /** A segment of a collection. */
@@ -114,6 +144,187 @@ export type ContainerProfileInput = {
   type: Scalars['String']['input']
 }
 
+/** Input type for creating a custom field definition. */
+export type CreateCustomFieldDefinitionInput = {
+  /**
+   * Gets or sets the metadata types this field applies to.
+   * Empty list means the field applies to all metadata types.
+   */
+  applicableMetadataTypes?: InputMaybe<Array<MetadataType>>
+  /** Gets or sets the unique key identifier for this field. */
+  key: Scalars['String']['input']
+  /** Gets or sets the display label for this field. */
+  label: Scalars['String']['input']
+  /** Gets or sets the display order of this field. */
+  sortOrder: Scalars['Int']['input']
+  /** Gets or sets the widget type for rendering this field. */
+  widget: DetailFieldWidgetType
+}
+
+/** Represents a custom field definition for the GraphQL API. */
+export type CustomFieldDefinition = {
+  __typename?: 'CustomFieldDefinition'
+  /** Gets the metadata types this field applies to. */
+  applicableMetadataTypes: Array<MetadataType>
+  /** Gets the unique identifier of the custom field definition. */
+  id: Scalars['ID']['output']
+  /** Gets a value indicating whether this field is enabled. */
+  isEnabled: Scalars['Boolean']['output']
+  /** Gets the unique key identifier for this field. */
+  key: Scalars['String']['output']
+  /** Gets the display label for this field. */
+  label: Scalars['String']['output']
+  /** Gets the display order of this field. */
+  sortOrder: Scalars['Int']['output']
+  /** Gets the widget type for rendering this field. */
+  widget: DetailFieldWidgetType
+}
+
+/** GraphQL representation of a detail field configuration. */
+export type DetailFieldConfiguration = {
+  __typename?: 'DetailFieldConfiguration'
+  /** Gets or sets the list of disabled custom field keys. */
+  disabledCustomFieldKeys: Array<Scalars['String']['output']>
+  /** Gets or sets the list of disabled field types. */
+  disabledFieldTypes: Array<DetailFieldType>
+  /** Gets or sets the ordered list of enabled fields. */
+  enabledFieldTypes: Array<DetailFieldType>
+  /** Gets or sets the field-to-group assignments as key-value pairs. */
+  fieldGroupAssignments?: Maybe<Array<KeyValuePairOfStringAndString>>
+  /** Gets or sets the list of field group definitions. */
+  fieldGroups?: Maybe<Array<DetailFieldGroup>>
+  /** Gets or sets the optional library section identifier when scoped. */
+  librarySectionId?: Maybe<Scalars['ID']['output']>
+  /** Gets or sets the metadata type this configuration targets. */
+  metadataType: MetadataType
+}
+
+/** Input describing the scope of a detail field configuration lookup. */
+export type DetailFieldConfigurationScopeInput = {
+  /** Gets or sets the optional library section identifier for scoped overrides. */
+  librarySectionId?: InputMaybe<Scalars['ID']['input']>
+  /** Gets or sets the metadata type the configuration applies to. */
+  metadataType: MetadataType
+}
+
+/** Represents a field definition for the GraphQL API. */
+export type DetailFieldDefinition = {
+  __typename?: 'DetailFieldDefinition'
+  /** Gets the custom field key for Custom field types. */
+  customFieldKey?: Maybe<Scalars['String']['output']>
+  /** Gets the type of field (e.g., Title, Summary, Custom, etc.). */
+  fieldType: DetailFieldType
+  /** Gets the key of the group this field belongs to. */
+  groupKey?: Maybe<Scalars['String']['output']>
+  /** Gets the unique key identifying this field definition. */
+  key: Scalars['String']['output']
+  /** Gets the display label for this field. */
+  label: Scalars['String']['output']
+  /** Gets the display order of this field. */
+  sortOrder: Scalars['Int']['output']
+  /** Gets the recommended widget type for client-side rendering. */
+  widget: DetailFieldWidgetType
+}
+
+/** Represents a field group definition for the GraphQL API. */
+export type DetailFieldGroup = {
+  __typename?: 'DetailFieldGroup'
+  /** Gets the unique key identifying this group. */
+  groupKey: Scalars['String']['output']
+  /** Gets a value indicating whether this group can be collapsed by the user. */
+  isCollapsible: Scalars['Boolean']['output']
+  /** Gets the display label for this group. */
+  label: Scalars['String']['output']
+  /** Gets the layout type for rendering fields within this group. */
+  layoutType: DetailFieldGroupLayoutType
+  /** Gets the display order of this group. */
+  sortOrder: Scalars['Int']['output']
+}
+
+/** Input for creating or updating a detail field group. */
+export type DetailFieldGroupInput = {
+  /** Gets or sets the unique key identifying this group. */
+  groupKey: Scalars['String']['input']
+  /** Gets or sets a value indicating whether this group can be collapsed by the user. */
+  isCollapsible: Scalars['Boolean']['input']
+  /** Gets or sets the display label for this group. */
+  label: Scalars['String']['input']
+  /** Gets or sets the layout type for rendering fields within this group. */
+  layoutType: DetailFieldGroupLayoutType
+  /** Gets or sets the display order of this group. */
+  sortOrder: Scalars['Int']['input']
+}
+
+/** Defines the layout type for field groups on item detail pages. */
+export enum DetailFieldGroupLayoutType {
+  /** Fields are arranged in a responsive grid layout. */
+  Grid = 'GRID',
+  /** Fields are arranged horizontally in a single row. */
+  Horizontal = 'HORIZONTAL',
+  /** Fields are arranged vertically in a single column. */
+  Vertical = 'VERTICAL',
+}
+
+/** Represents the type of field displayed on item detail pages. */
+export enum DetailFieldType {
+  /**
+   * The actions button block (Play, Edit, Menu, etc.).
+   * This is a non-configurable placeholder; the client determines which buttons to show.
+   */
+  Actions = 'ACTIONS',
+  /** The content rating (e.g., "PG-13", "TV-MA"). */
+  ContentRating = 'CONTENT_RATING',
+  /** A custom field defined by an administrator, stored in ExtraFields. */
+  Custom = 'CUSTOM',
+  /** External identifiers (TMDB, TVDB, IMDb, etc.). */
+  ExternalIds = 'EXTERNAL_IDS',
+  /** The genres associated with the item. */
+  Genres = 'GENRES',
+  /** The original title in the original language. */
+  OriginalTitle = 'ORIGINAL_TITLE',
+  /** The release date of the item. */
+  ReleaseDate = 'RELEASE_DATE',
+  /** The runtime/duration of the item. */
+  Runtime = 'RUNTIME',
+  /** The summary or description text. */
+  Summary = 'SUMMARY',
+  /** The tagline or slogan. */
+  Tagline = 'TAGLINE',
+  /** The tags associated with the item. */
+  Tags = 'TAGS',
+  /** The display title of the item. */
+  Title = 'TITLE',
+  /** The release year of the item. */
+  Year = 'YEAR',
+}
+
+/** Represents the widget type for rendering a field on the client. */
+export enum DetailFieldWidgetType {
+  /**
+   * The actions button block (Play, Edit, Menu, etc.).
+   * The client determines which buttons to render based on user role and item capabilities.
+   */
+  Actions = 'ACTIONS',
+  /** A badge/pill display (e.g., content rating). */
+  Badge = 'BADGE',
+  /** A boolean/toggle display. */
+  Boolean = 'BOOLEAN',
+  /** A formatted date display. */
+  Date = 'DATE',
+  /** A formatted duration display (e.g., "2h 15m"). */
+  Duration = 'DURATION',
+  /** A heading/title display (typically larger, bold text). */
+  Heading = 'HEADING',
+  /** A clickable link. */
+  Link = 'LINK',
+  /** A list of items (e.g., genres, tags). */
+  List = 'LIST',
+  /** A numeric value display. */
+  Number = 'NUMBER',
+  /** Plain text display. */
+  Text = 'TEXT',
+}
+
 /** GraphQL input describing a direct-play capability. */
 export type DirectPlayProfileInput = {
   /** Gets or sets the supported audio codec, if constrained. */
@@ -152,6 +363,57 @@ export type EpisodeSortOrderOperationFilterInput = {
   in?: InputMaybe<Array<EpisodeSortOrder>>
   neq?: InputMaybe<EpisodeSortOrder>
   nin?: InputMaybe<Array<EpisodeSortOrder>>
+}
+
+/** Represents an external identifier from a metadata provider. */
+export type ExternalId = {
+  __typename?: 'ExternalId'
+  /** The provider name (e.g., "tmdb", "imdb", "tvdb"). */
+  provider: Scalars['String']['output']
+  /** The identifier value from the provider. */
+  value: Scalars['String']['output']
+}
+
+/** Input for an external identifier. */
+export type ExternalIdInput = {
+  /** The provider name (e.g., "tmdb", "imdb", "tvdb"). */
+  provider: Scalars['String']['input']
+  /** The identifier value from the provider. */
+  value?: InputMaybe<Scalars['String']['input']>
+}
+
+/** Represents a key-value pair for extra fields in the GraphQL API. */
+export type ExtraField = {
+  __typename?: 'ExtraField'
+  /** Gets the field key. */
+  key: Scalars['String']['output']
+  /** Gets the field value as a JSON element. */
+  value?: Maybe<Scalars['Any']['output']>
+}
+
+/** Input type for setting an extra field value on a metadata item. */
+export type ExtraFieldInput = {
+  /** Gets or sets the field key. */
+  key: Scalars['String']['input']
+  /** Gets or sets the field value as a JSON element. */
+  value?: InputMaybe<Scalars['Any']['input']>
+}
+
+/** Payload containing detected FFmpeg capabilities and recommendations. */
+export type FfmpegCapabilitiesPayload = {
+  __typename?: 'FfmpegCapabilitiesPayload'
+  /** Whether capability detection has completed. */
+  isDetected: Scalars['Boolean']['output']
+  /** The recommended hardware acceleration for this platform. */
+  recommendedAcceleration: HardwareAccelerationKind
+  /** List of all supported encoders. */
+  supportedEncoders: Array<Scalars['String']['output']>
+  /** List of all supported filters. */
+  supportedFilters: Array<Scalars['String']['output']>
+  /** List of supported hardware acceleration types. */
+  supportedHardwareAccelerators: Array<HardwareAccelerationKind>
+  /** The detected FFmpeg version string. */
+  version: Scalars['String']['output']
 }
 
 /** GraphQL type describing an entry in a directory listing. */
@@ -210,6 +472,45 @@ export type GetHubItemsInput = {
   metadataItemId?: InputMaybe<Scalars['ID']['input']>
 }
 
+/** Hardware acceleration modes supported by the server configuration. */
+export enum HardwareAccelerationKind {
+  /** AMD Advanced Media Framework (Windows). */
+  Amf = 'AMF',
+  /** No hardware acceleration is used. */
+  None = 'NONE',
+  /** NVIDIA NVENC/NVDEC. */
+  Nvenc = 'NVENC',
+  /** Intel Quick Sync Video. */
+  Qsv = 'QSV',
+  /** Rockchip Media Process Platform (Rockchip SoCs). */
+  Rkmpp = 'RKMPP',
+  /** Video4Linux2 Memory-to-Memory (Raspberry Pi/ARM). */
+  V4L2M2M = 'V4L2M2M',
+  /** VAAPI acceleration (Linux GPUs supporting VA-API). */
+  Vaapi = 'VAAPI',
+  /** Apple VideoToolbox (macOS/iOS). */
+  VideoToolbox = 'VIDEO_TOOLBOX',
+}
+
+/** GraphQL representation of a hub configuration. */
+export type HubConfiguration = {
+  __typename?: 'HubConfiguration'
+  /** Gets or sets the list of disabled hub types. */
+  disabledHubTypes: Array<HubType>
+  /** Gets or sets the ordered list of enabled hub types. */
+  enabledHubTypes: Array<HubType>
+}
+
+/** Input describing the scope of a hub configuration lookup. */
+export type HubConfigurationScopeInput = {
+  /** Gets or sets the hub context being configured. */
+  context: HubContext
+  /** Gets or sets the optional library section identifier for discover/detail scopes. */
+  librarySectionId?: InputMaybe<Scalars['ID']['input']>
+  /** Gets or sets the optional metadata type for item detail configurations. */
+  metadataType?: InputMaybe<MetadataType>
+}
+
 /** Represents the context in which a hub is displayed. */
 export enum HubContext {
   /** Hub is displayed on the global home page, aggregating content from all user-accessible libraries. */
@@ -243,6 +544,8 @@ export type HubDefinition = {
 
 /** Represents the type of hub, defining the content and logic for populating it. */
 export enum HubType {
+  /** Album releases within an album release group. */
+  AlbumReleases = 'ALBUM_RELEASES',
   /** Cast members for an item. */
   Cast = 'CAST',
   /** Items currently being watched (has view offset but not completed). */
@@ -257,6 +560,8 @@ export enum HubType {
   MoreFromDirector = 'MORE_FROM_DIRECTOR',
   /** The next episode to watch in a series (On Deck). */
   OnDeck = 'ON_DECK',
+  /** Photos or pictures within a PhotoAlbum or PictureSet. */
+  Photos = 'PHOTOS',
   /** Admin-promoted items for the hero carousel, backfilled with recently added items. */
   Promoted = 'PROMOTED',
   /** Items recently added to the library. */
@@ -277,16 +582,22 @@ export enum HubType {
   TopByDirector = 'TOP_BY_DIRECTOR',
   /** Top items filtered by a specific genre. */
   TopByGenre = 'TOP_BY_GENRE',
+  /** Tracks from an album release, grouped by medium/disc. */
+  Tracks = 'TRACKS',
 }
 
 /** Represents the recommended widget type for rendering a hub on the client. */
 export enum HubWidgetType {
+  /** A grid layout for displaying photos or pictures. */
+  Grid = 'GRID',
   /** A large hero carousel with backdrop images, logos, and rich metadata. */
   Hero = 'HERO',
   /** A horizontal slider of items or people cards. */
   Slider = 'SLIDER',
   /** A timeline list of items ordered from most recent to least recent. */
   Timeline = 'TIMELINE',
+  /** A vertical tracklist of audio tracks grouped by medium/disc. */
+  Tracklist = 'TRACKLIST',
 }
 
 export type IdOperationFilterInput = {
@@ -320,14 +631,37 @@ export type Item = Node & {
   artUri?: Maybe<Scalars['String']['output']>
   /** Gets the number of child items in the metadata item. */
   childCount: Scalars['Int']['output']
+  /**
+   * Gets an offset-paginated list of child metadata items for this item.
+   * Useful for PhotoAlbum, PictureSet, Season, and other container types.
+   *
+   *
+   * **Returns:**
+   * An in-memory queryable used by HotChocolate to create a collection segment.
+   */
+  children?: Maybe<ChildrenCollectionSegment>
   /** Gets the content rating of the metadata item. */
   contentRating: Scalars['String']['output']
   /** Gets an optional context-specific string (e.g., role name for people in hubs). */
   context?: Maybe<Scalars['String']['output']>
+  /**
+   * Resolves external identifiers (TMDB, IMDb, TVDB, etc.) for the metadata item.
+   *
+   *
+   * **Returns:**
+   * A list of external identifiers.
+   */
+  externalIds: Array<ExternalId>
+  /**
+   * Gets the extra fields associated with this metadata item.
+   *
+   *
+   * **Returns:**
+   * A list of extra field key-value pairs.
+   */
+  extraFields: Array<ExtraField>
   /** Gets the list of genres associated with this metadata item. */
   genres: Array<Scalars['String']['output']>
-  /** Gets the grandparent identifier of the metadata item. */
-  grandparentId: Scalars['ID']['output']
   /** Gets the global Relay-compatible identifier of the metadata item. */
   id: Scalars['ID']['output']
   /** Gets the index of the metadata item. */
@@ -340,6 +674,8 @@ export type Item = Node & {
   length: Scalars['Int']['output']
   /** Gets the owning library section identifier (Relay GUID). */
   librarySectionId: Scalars['ID']['output']
+  /** Gets the list of field names that are locked from automatic updates. */
+  lockedFields: Array<Scalars['String']['output']>
   /** Gets the ThumbHash placeholder for the logo. */
   logoHash?: Maybe<Scalars['String']['output']>
   /** Gets the logo URL of the metadata item. */
@@ -350,10 +686,31 @@ export type Item = Node & {
   originalTitle: Scalars['String']['output']
   /** Gets the date the metadata item was originally available. */
   originallyAvailableAt?: Maybe<Scalars['LocalDate']['output']>
-  /** Gets the parent identifier of the metadata item. */
-  parentId: Scalars['ID']['output']
-  /** Gets the parent title of the metadata item. */
-  parentTitle: Scalars['String']['output']
+  /**
+   * Resolves the parent metadata item when available.
+   *
+   *
+   * **Returns:**
+   * The parent metadata item or null if none exists.
+   */
+  parent?: Maybe<Item>
+  /**
+   * Resolves all persons and groups for a music track.
+   *
+   *
+   * **Returns:**
+   * The list of persons and groups.
+   */
+  persons: Array<Item>
+  /**
+   * Resolves the primary person or group for a music album.
+   * For albums, this looks at persons linked to child tracks and returns the first one.
+   *
+   *
+   * **Returns:**
+   * The primary person or group, or null if none exists.
+   */
+  primaryPerson?: Maybe<Item>
   /**
    * Resolves the user rating for the metadata item.
    *
@@ -399,6 +756,14 @@ export type Item = Node & {
 }
 
 /** Representation of a metadata item for pagination queries. */
+export type ItemChildrenArgs = {
+  order?: InputMaybe<Array<ItemSortInput>>
+  skip?: InputMaybe<Scalars['Int']['input']>
+  take?: InputMaybe<Scalars['Int']['input']>
+  where?: InputMaybe<ItemFilterInput>
+}
+
+/** Representation of a metadata item for pagination queries. */
 export type ItemFilterInput = {
   and?: InputMaybe<Array<ItemFilterInput>>
   /** Gets the ThumbHash placeholder for the backdrop. */
@@ -413,8 +778,6 @@ export type ItemFilterInput = {
   context?: InputMaybe<StringOperationFilterInput>
   /** Gets the list of genres associated with this metadata item. */
   genres?: InputMaybe<ListStringOperationFilterInput>
-  /** Gets the grandparent identifier of the metadata item. */
-  grandparentId?: InputMaybe<IdOperationFilterInput>
   /** Gets the global Relay-compatible identifier of the metadata item. */
   id?: InputMaybe<IdOperationFilterInput>
   /** Gets the index of the metadata item. */
@@ -427,6 +790,8 @@ export type ItemFilterInput = {
   length?: InputMaybe<IntOperationFilterInput>
   /** Gets the owning library section identifier (Relay GUID). */
   librarySectionId?: InputMaybe<IdOperationFilterInput>
+  /** Gets the list of field names that are locked from automatic updates. */
+  lockedFields?: InputMaybe<ListStringOperationFilterInput>
   /** Gets the ThumbHash placeholder for the logo. */
   logoHash?: InputMaybe<StringOperationFilterInput>
   /** Gets the logo URL of the metadata item. */
@@ -438,10 +803,6 @@ export type ItemFilterInput = {
   originalTitle?: InputMaybe<StringOperationFilterInput>
   /** Gets the date the metadata item was originally available. */
   originallyAvailableAt?: InputMaybe<LocalDateOperationFilterInput>
-  /** Gets the parent identifier of the metadata item. */
-  parentId?: InputMaybe<IdOperationFilterInput>
-  /** Gets the parent title of the metadata item. */
-  parentTitle?: InputMaybe<StringOperationFilterInput>
   /** Gets the summary description of the metadata item. */
   summary?: InputMaybe<StringOperationFilterInput>
   /** Gets the tagline of the metadata item. */
@@ -464,6 +825,16 @@ export type ItemFilterInput = {
 
 /** Representation of a metadata item for pagination queries. */
 export type ItemSortInput = {
+  /** Gets the content rating age value for sorting purposes. */
+  contentRating?: InputMaybe<SortEnumType>
+  /** Gets the date and time when this item was added to the library. */
+  dateAdded?: InputMaybe<SortEnumType>
+  /** Gets the length of the metadata item in milliseconds. */
+  duration?: InputMaybe<SortEnumType>
+  /** Gets the index of the metadata item. */
+  index?: InputMaybe<SortEnumType>
+  /** Gets the date the metadata item was originally available. */
+  releaseDate?: InputMaybe<SortEnumType>
   /** Gets the sortable title of the metadata item. */
   title?: InputMaybe<SortEnumType>
   /** Gets the year the metadata item was released. */
@@ -509,6 +880,12 @@ export enum JobType {
   SearchIndexRebuild = 'SEARCH_INDEX_REBUILD',
   /** Trickplay (BIF) generation job. */
   TrickplayGeneration = 'TRICKPLAY_GENERATION',
+}
+
+export type KeyValuePairOfStringAndBoolean = {
+  __typename?: 'KeyValuePairOfStringAndBoolean'
+  key: Scalars['String']['output']
+  value: Scalars['Boolean']['output']
 }
 
 export type KeyValuePairOfStringAndDictionaryOfStringAndString = {
@@ -576,6 +953,22 @@ export type LetterIndexEntry = {
 export type LibrarySection = Node & {
   __typename?: 'LibrarySection'
   /**
+   * Gets the available root item types for browsing this library section.
+   *
+   *
+   * **Returns:**
+   * A list of browsable item type options.
+   */
+  availableRootItemTypes: Array<BrowsableItemType>
+  /**
+   * Gets the available sort fields for browsing this library section.
+   *
+   *
+   * **Returns:**
+   * A list of sort field options.
+   */
+  availableSortFields: Array<SortField>
+  /**
    * Gets an offset-paginated list of top-level (root) metadata items (those without a parent) for this library section.
    * Uses skip/take parameters to allow arbitrary position jumping for jump bar navigation.
    *
@@ -625,7 +1018,7 @@ export type LibrarySection = Node & {
 
 /** Representation of a library section for GraphQL queries. */
 export type LibrarySectionChildrenArgs = {
-  metadataType: MetadataType
+  metadataTypes: Array<MetadataType>
   order?: InputMaybe<Array<ItemSortInput>>
   skip?: InputMaybe<Scalars['Int']['input']>
   take?: InputMaybe<Scalars['Int']['input']>
@@ -634,7 +1027,7 @@ export type LibrarySectionChildrenArgs = {
 
 /** Representation of a library section for GraphQL queries. */
 export type LibrarySectionLetterIndexArgs = {
-  metadataType: MetadataType
+  metadataTypes: Array<MetadataType>
 }
 
 /** Representation of a library section for GraphQL queries. */
@@ -840,6 +1233,14 @@ export type LocalDateOperationFilterInput = {
   nlte?: InputMaybe<Scalars['LocalDate']['input']>
 }
 
+/** Input for locking fields on a metadata item. */
+export type LockMetadataFieldsInput = {
+  /** The field names to lock. Use constants from MetadataFieldNames for built-in fields. */
+  fields: Array<Scalars['String']['input']>
+  /** The UUID of the metadata item to lock fields on. */
+  itemId: Scalars['ID']['input']
+}
+
 /**
  * Categorizes metadata agents by their data source type.
  * Used in the UI to display appropriate icons and group agents.
@@ -875,6 +1276,18 @@ export type MetadataAgentInfo = {
   supportedLibraryTypes: Array<LibraryType>
 }
 
+/** Payload returned after locking or unlocking metadata fields. */
+export type MetadataFieldLockPayload = {
+  __typename?: 'MetadataFieldLockPayload'
+  /** Error message if the operation failed. */
+  error?: Maybe<Scalars['String']['output']>
+  /** The current list of locked fields on the item after the operation. */
+  lockedFields?: Maybe<Array<Scalars['String']['output']>>
+  query: Query
+  /** Whether the operation was successful. */
+  success: Scalars['Boolean']['output']
+}
+
 /** A connection to a list of items. */
 export type MetadataItemsConnection = {
   __typename?: 'MetadataItemsConnection'
@@ -897,6 +1310,8 @@ export type MetadataItemsEdge = {
 
 /** Enumeration of supported metadata types. */
 export enum MetadataType {
+  /** The metadata represents a medium within an audio album release, such as a disc in a multi-disc set. */
+  AlbumMedium = 'ALBUM_MEDIUM',
   /** The metadata represents a audio album release. */
   AlbumRelease = 'ALBUM_RELEASE',
   /** The metadata represents a grouping of album releases, such as a studio album or compilation. */
@@ -914,6 +1329,8 @@ export enum MetadataType {
   Clip = 'CLIP',
   /** Collection metadata type. */
   Collection = 'COLLECTION',
+  /** The metadata represents a company or organization (e.g., production company, publisher, distributor). */
+  Company = 'COMPANY',
   /** Deleted scene extra metadata type. */
   DeletedScene = 'DELETED_SCENE',
   /**
@@ -946,6 +1363,8 @@ export enum MetadataType {
   Group = 'GROUP',
   /** Interview extra metadata type. */
   Interview = 'INTERVIEW',
+  /** The metadata represents a label (e.g., record label, movie studio label, book imprint). */
+  Label = 'LABEL',
   /** The metadata represents a literary work as a whole. */
   LiteraryWork = 'LITERARY_WORK',
   /** The metadata represents a part of a literary work, such as a chapter or section. */
@@ -1006,6 +1425,22 @@ export type Mutation = {
    */
   addLibrarySection: AddLibrarySectionPayload
   /**
+   * Enqueues file analysis, GoP-index generation, and trickplay generation for a metadata item.
+   *
+   *
+   * **Returns:**
+   * Payload indicating success or error.
+   */
+  analyzeItem: AnalyzeItemPayload
+  /**
+   * Creates a new custom field definition (admin only).
+   *
+   *
+   * **Returns:**
+   * The created custom field definition.
+   */
+  createCustomFieldDefinition: CustomFieldDefinition
+  /**
    * Requests a playback decision for the current session.
    *
    *
@@ -1013,6 +1448,22 @@ export type Mutation = {
    * The decision payload.
    */
   decidePlayback: PlaybackDecisionPayload
+  /**
+   * Deletes a custom field definition (admin only).
+   *
+   *
+   * **Returns:**
+   * True if the field was deleted, false if it was not found.
+   */
+  deleteCustomFieldDefinition: Scalars['Boolean']['output']
+  /**
+   * Locks specified fields on a metadata item, preventing automatic updates.
+   *
+   *
+   * **Returns:**
+   * Payload indicating success and the current locked fields.
+   */
+  lockMetadataFields: MetadataFieldLockPayload
   /**
    * Records a playback heartbeat for the active session.
    *
@@ -1030,6 +1481,46 @@ export type Mutation = {
    * The seek payload with the nearest keyframe position.
    */
   playbackSeek: PlaybackSeekPayload
+  /**
+   * Jumps to a specific index in the playlist.
+   *
+   *
+   * **Returns:**
+   * The navigation payload with the item at the specified index.
+   */
+  playlistJump: PlaylistNavigatePayload
+  /**
+   * Navigates to the next item in the playlist.
+   *
+   *
+   * **Returns:**
+   * The navigation payload with the next item.
+   */
+  playlistNext: PlaylistNavigatePayload
+  /**
+   * Navigates to the previous item in the playlist.
+   *
+   *
+   * **Returns:**
+   * The navigation payload with the previous item.
+   */
+  playlistPrevious: PlaylistNavigatePayload
+  /**
+   * Sets repeat mode on the playlist.
+   *
+   *
+   * **Returns:**
+   * The navigation payload with updated state.
+   */
+  playlistSetRepeat: PlaylistNavigatePayload
+  /**
+   * Sets shuffle mode on the playlist.
+   *
+   *
+   * **Returns:**
+   * The navigation payload with updated state.
+   */
+  playlistSetShuffle: PlaylistNavigatePayload
   /**
    * Promotes a metadata item to the hero carousel.
    *
@@ -1063,6 +1554,14 @@ export type Mutation = {
    */
   removeLibrarySection: RemoveLibrarySectionPayload
   /**
+   * Initiates a graceful server shutdown. Container orchestrators (Docker, systemd, etc.) will auto-restart the service.
+   *
+   *
+   * **Returns:**
+   * True if shutdown was initiated successfully.
+   */
+  restartServer: Scalars['Boolean']['output']
+  /**
    * Attempts to resume a playback session by identifier.
    *
    *
@@ -1070,6 +1569,14 @@ export type Mutation = {
    * Resume details for the session.
    */
   resumePlayback: PlaybackResumePayload
+  /**
+   * Starts a full filesystem scan for an entire library section.
+   *
+   *
+   * **Returns:**
+   * Payload indicating success, scan ID, or error.
+   */
+  startLibraryScan: StartLibraryScanPayload
   /**
    * Starts playback for a metadata item.
    *
@@ -1079,6 +1586,22 @@ export type Mutation = {
    */
   startPlayback: PlaybackStartPayload
   /**
+   * Stops an active playback session and cleans up associated resources.
+   *
+   *
+   * **Returns:**
+   * Acknowledgement payload.
+   */
+  stopPlayback: PlaybackStopPayload
+  /**
+   * Unlocks specified fields on a metadata item, allowing automatic updates.
+   *
+   *
+   * **Returns:**
+   * Payload indicating success and the current locked fields.
+   */
+  unlockMetadataFields: MetadataFieldLockPayload
+  /**
    * Unpromotes a metadata item from the hero carousel.
    *
    *
@@ -1086,14 +1609,86 @@ export type Mutation = {
    * Payload indicating success or error.
    */
   unpromoteItem: PromoteItemPayload
+  /**
+   * Updates the admin-defined detail field configuration for a metadata type and optional library.
+   *
+   *
+   * **Returns:**
+   * The updated configuration.
+   */
+  updateAdminDetailFieldConfiguration: DetailFieldConfiguration
+  /**
+   * Updates an existing custom field definition (admin only).
+   *
+   *
+   * **Returns:**
+   * The updated custom field definition.
+   */
+  updateCustomFieldDefinition: CustomFieldDefinition
+  /**
+   * Updates the field visibility configuration for the current user.
+   *
+   *
+   * **Returns:**
+   * The updated field definitions.
+   */
+  updateDetailFieldConfiguration: Array<DetailFieldDefinition>
+  /**
+   * Updates a hub configuration for the specified context and scope (admin only).
+   *
+   *
+   * **Returns:**
+   * The updated hub configuration.
+   */
+  updateHubConfiguration: HubConfiguration
+  /**
+   * Updates a metadata item with the specified fields, respecting locked field settings.
+   *
+   *
+   * **Returns:**
+   * Payload indicating success and the updated item.
+   */
+  updateMetadataItem: UpdateMetadataItemPayload
+  /**
+   * Updates server-wide configuration settings. Only specified fields are updated.
+   *
+   *
+   * **Returns:**
+   * The updated server settings.
+   */
+  updateServerSettings: ServerSettingsPayload
+  /**
+   * Updates transcode settings (admin only).
+   *
+   *
+   * **Returns:**
+   * The updated transcode settings.
+   */
+  updateTranscodeSettings: TranscodeSettingsPayload
 }
 
 export type MutationAddLibrarySectionArgs = {
   input: AddLibrarySectionInput
 }
 
+export type MutationAnalyzeItemArgs = {
+  input: AnalyzeItemInput
+}
+
+export type MutationCreateCustomFieldDefinitionArgs = {
+  input: CreateCustomFieldDefinitionInput
+}
+
 export type MutationDecidePlaybackArgs = {
   input: PlaybackDecisionInput
+}
+
+export type MutationDeleteCustomFieldDefinitionArgs = {
+  id: Scalars['ID']['input']
+}
+
+export type MutationLockMetadataFieldsArgs = {
+  input: LockMetadataFieldsInput
 }
 
 export type MutationPlaybackHeartbeatArgs = {
@@ -1102,6 +1697,26 @@ export type MutationPlaybackHeartbeatArgs = {
 
 export type MutationPlaybackSeekArgs = {
   input: PlaybackSeekInput
+}
+
+export type MutationPlaylistJumpArgs = {
+  input: PlaylistJumpInput
+}
+
+export type MutationPlaylistNextArgs = {
+  input: PlaylistNavigateInput
+}
+
+export type MutationPlaylistPreviousArgs = {
+  input: PlaylistNavigateInput
+}
+
+export type MutationPlaylistSetRepeatArgs = {
+  input: PlaylistModeInput
+}
+
+export type MutationPlaylistSetShuffleArgs = {
+  input: PlaylistModeInput
 }
 
 export type MutationPromoteItemArgs = {
@@ -1124,12 +1739,52 @@ export type MutationResumePlaybackArgs = {
   input: PlaybackResumeInput
 }
 
+export type MutationStartLibraryScanArgs = {
+  input: StartLibraryScanInput
+}
+
 export type MutationStartPlaybackArgs = {
   input: PlaybackStartInput
 }
 
+export type MutationStopPlaybackArgs = {
+  input: PlaybackStopInput
+}
+
+export type MutationUnlockMetadataFieldsArgs = {
+  input: UnlockMetadataFieldsInput
+}
+
 export type MutationUnpromoteItemArgs = {
   input: UnpromoteItemInput
+}
+
+export type MutationUpdateAdminDetailFieldConfigurationArgs = {
+  input: UpdateAdminDetailFieldConfigurationInput
+}
+
+export type MutationUpdateCustomFieldDefinitionArgs = {
+  input: UpdateCustomFieldDefinitionInput
+}
+
+export type MutationUpdateDetailFieldConfigurationArgs = {
+  input: UpdateDetailFieldConfigurationInput
+}
+
+export type MutationUpdateHubConfigurationArgs = {
+  input: UpdateHubConfigurationInput
+}
+
+export type MutationUpdateMetadataItemArgs = {
+  input: UpdateMetadataItemInput
+}
+
+export type MutationUpdateServerSettingsArgs = {
+  input: UpdateServerSettingsInput
+}
+
+export type MutationUpdateTranscodeSettingsArgs = {
+  input: UpdateTranscodeSettingsInput
 }
 
 /** The node interface is implemented by entities that have a global unique identifier. */
@@ -1170,6 +1825,8 @@ export type PlaybackCapabilitiesInput = {
   responseProfiles: Array<ResponseProfileInput>
   /** Gets or sets subtitle delivery capabilities. */
   subtitleProfiles: Array<SubtitleProfileInput>
+  /** Gets or sets the image formats the client can render without server-side resizing. */
+  supportedImageFormats: Array<Scalars['String']['input']>
   /** Gets or sets a value indicating whether DASH playback is supported. */
   supportsDash?: InputMaybe<Scalars['Boolean']['input']>
   /** Gets or sets a value indicating whether the device can render HDR natively. */
@@ -1200,6 +1857,8 @@ export type PlaybackDecisionInput = {
   capabilityProfileVersion?: InputMaybe<Scalars['Int']['input']>
   /** Gets or sets the current metadata item identifier. */
   currentItemId: Scalars['ID']['input']
+  /** Gets or sets the target playlist index when status is "jump". */
+  jumpIndex?: InputMaybe<Scalars['Int']['input']>
   /** Gets or sets the playback session identifier. */
   playbackSessionId: Scalars['UUID']['input']
   /** Gets or sets the current progress in milliseconds. */
@@ -1219,6 +1878,14 @@ export type PlaybackDecisionPayload = {
   capabilityVersionMismatch: Scalars['Boolean']['output']
   /** Gets the next metadata item identifier. */
   nextItemId?: Maybe<Scalars['ID']['output']>
+  /** Gets the original title of the next item (e.g., artist name for tracks). */
+  nextItemOriginalTitle?: Maybe<Scalars['String']['output']>
+  /** Gets the parent title of the next item (e.g., album name for tracks). */
+  nextItemParentTitle?: Maybe<Scalars['String']['output']>
+  /** Gets the thumbnail URL of the next item. */
+  nextItemThumbUrl?: Maybe<Scalars['String']['output']>
+  /** Gets the title of the next item. */
+  nextItemTitle?: Maybe<Scalars['String']['output']>
   /** Gets the URL the client should load for the decided item. */
   playbackUrl: Scalars['String']['output']
   query: Query
@@ -1275,8 +1942,12 @@ export type PlaybackResumePayload = {
   capabilityVersionMismatch: Scalars['Boolean']['output']
   /** Gets the current metadata item identifier. */
   currentItemId: Scalars['ID']['output']
+  /** Gets the duration of the media item in milliseconds. */
+  durationMs?: Maybe<Scalars['Long']['output']>
   /** Gets the playback session identifier. */
   playbackSessionId: Scalars['UUID']['output']
+  /** Gets the playback URL the client should load when resuming. */
+  playbackUrl: Scalars['String']['output']
   /** Gets the current playhead in milliseconds. */
   playheadMs: Scalars['Long']['output']
   /** Gets the playlist generator identifier. */
@@ -1284,6 +1955,10 @@ export type PlaybackResumePayload = {
   query: Query
   /** Gets the current playback state. */
   state: Scalars['String']['output']
+  /** Gets the serialized stream plan for the current playback. */
+  streamPlanJson: Scalars['String']['output']
+  /** Gets the trickplay track URL when available. */
+  trickplayUrl?: Maybe<Scalars['String']['output']>
 }
 
 /**
@@ -1328,12 +2003,34 @@ export type PlaybackStartInput = {
   capability?: InputMaybe<PlaybackCapabilityInput>
   /** Gets or sets the capability profile version the client believes is current. */
   capabilityProfileVersion?: InputMaybe<Scalars['Int']['input']>
-  /** Gets or sets an optional JSON payload describing playback context. */
+  /**
+   * Gets or sets an optional JSON payload describing playback context.
+   * This property is deprecated; use PlaylistType, OriginatorId, Shuffle, and Repeat instead.
+   */
   contextJson?: InputMaybe<Scalars['String']['input']>
-  /** Gets or sets the metadata item identifier. */
+  /**
+   * Gets or sets the metadata item identifier to start playing.
+   * For single item playback, this is the item to play.
+   * For container playback (album, show), this can be the specific child to start with.
+   */
   itemId: Scalars['ID']['input']
   /** Gets or sets an optional originator descriptor. */
   originator?: InputMaybe<Scalars['String']['input']>
+  /**
+   * Gets or sets an optional originator identifier for container-based playlists.
+   * When playing an album track or show episode, set this to the parent container ID
+   * to enable playlist navigation through all items in the container.
+   */
+  originatorId?: InputMaybe<Scalars['ID']['input']>
+  /**
+   * Gets or sets the playlist type. Defaults to "single" for single item playback.
+   * Supported values: "single", "album", "season", "show", "artist", "library", "explicit".
+   */
+  playlistType: Scalars['String']['input']
+  /** Gets or sets a value indicating whether repeat mode should be enabled for the playlist. */
+  repeat: Scalars['Boolean']['input']
+  /** Gets or sets a value indicating whether shuffle mode should be enabled for the playlist. */
+  shuffle: Scalars['Boolean']['input']
 }
 
 /** GraphQL payload returned after starting playback. */
@@ -1343,6 +2040,20 @@ export type PlaybackStartPayload = {
   capabilityProfileVersion: Scalars['Int']['output']
   /** Gets a value indicating whether the client should refresh capabilities. */
   capabilityVersionMismatch: Scalars['Boolean']['output']
+  /** Gets the current item's identifier (public UUID). */
+  currentItemId?: Maybe<Scalars['ID']['output']>
+  /** Gets the metadata type of the current item. */
+  currentItemMetadataType: Scalars['String']['output']
+  /** Gets the original title (e.g., artist) of the current item being played. */
+  currentItemOriginalTitle?: Maybe<Scalars['String']['output']>
+  /** Gets the parent thumbnail URL of the current item being played. */
+  currentItemParentThumbUrl?: Maybe<Scalars['String']['output']>
+  /** Gets the parent title (e.g., album) of the current item being played. */
+  currentItemParentTitle?: Maybe<Scalars['String']['output']>
+  /** Gets the thumbnail URL of the current item being played. */
+  currentItemThumbUrl?: Maybe<Scalars['String']['output']>
+  /** Gets the title of the current item being played. */
+  currentItemTitle?: Maybe<Scalars['String']['output']>
   /** Gets the duration of the media item in milliseconds. */
   durationMs?: Maybe<Scalars['Long']['output']>
   /** Gets the playback session identifier. */
@@ -1351,11 +2062,134 @@ export type PlaybackStartPayload = {
   playbackUrl: Scalars['String']['output']
   /** Gets the playlist generator identifier. */
   playlistGeneratorId: Scalars['UUID']['output']
+  /** Gets the current index within the playlist (0-based). */
+  playlistIndex: Scalars['Int']['output']
+  /** Gets the total number of items in the playlist. */
+  playlistTotalCount: Scalars['Int']['output']
   query: Query
+  /** Gets a value indicating whether repeat mode is enabled. */
+  repeat: Scalars['Boolean']['output']
+  /** Gets a value indicating whether shuffle mode is enabled. */
+  shuffle: Scalars['Boolean']['output']
   /** Gets the serialized stream plan for the current item. */
   streamPlanJson: Scalars['String']['output']
   /** Gets the trickplay thumbnail track URL when available. */
   trickplayUrl?: Maybe<Scalars['String']['output']>
+}
+
+/** Input payload used to stop an active playback session. */
+export type PlaybackStopInput = {
+  /** Gets or sets the playback session identifier to stop. */
+  playbackSessionId: Scalars['UUID']['input']
+}
+
+/** Payload returned after stopping a playback session. */
+export type PlaybackStopPayload = {
+  __typename?: 'PlaybackStopPayload'
+  query: Query
+  /** Gets a value indicating whether the playback session was stopped. */
+  success: Scalars['Boolean']['output']
+}
+
+/** Input payload used to request a chunk of playlist items. */
+export type PlaylistChunkInput = {
+  /** Gets or sets the maximum number of items to return. */
+  limit: Scalars['Int']['input']
+  /** Gets or sets the playlist generator identifier. */
+  playlistGeneratorId: Scalars['UUID']['input']
+  /** Gets or sets the starting index (0-based). */
+  startIndex: Scalars['Int']['input']
+}
+
+/** GraphQL payload containing a chunk of playlist items. */
+export type PlaylistChunkPayload = {
+  __typename?: 'PlaylistChunkPayload'
+  /** Gets or sets the current cursor position (0-based index of the currently playing item). */
+  currentIndex: Scalars['Int']['output']
+  /** Gets or sets a value indicating whether there are more items available after this chunk. */
+  hasMore: Scalars['Boolean']['output']
+  /** Gets or sets the items in this chunk. */
+  items: Array<PlaylistItemPayload>
+  /** Gets or sets the playlist generator identifier. */
+  playlistGeneratorId: Scalars['UUID']['output']
+  /** Gets or sets a value indicating whether repeat mode is enabled. */
+  repeat: Scalars['Boolean']['output']
+  /** Gets or sets a value indicating whether shuffle mode is enabled. */
+  shuffle: Scalars['Boolean']['output']
+  /**
+   * Gets or sets the total number of items in the playlist.
+   * -1 indicates the total is unknown (e.g., for infinite/dynamic playlists).
+   */
+  totalCount: Scalars['Int']['output']
+}
+
+/** GraphQL payload representing a single playlist item. */
+export type PlaylistItemPayload = {
+  __typename?: 'PlaylistItemPayload'
+  /** Gets or sets the duration in milliseconds, if known. */
+  durationMs?: Maybe<Scalars['Long']['output']>
+  /** Gets or sets the 0-based index of this item within the playlist. */
+  index: Scalars['Int']['output']
+  /** Gets or sets the unique identifier of the playlist item entry. */
+  itemEntryId: Scalars['Int']['output']
+  /** Gets or sets the public UUID of the metadata item. */
+  itemId: Scalars['ID']['output']
+  /** Gets or sets the metadata type (Movie, Episode, Track, etc.). */
+  metadataType: Scalars['String']['output']
+  /** Gets or sets the parent title (e.g., album for tracks, show for episodes). */
+  parentTitle?: Maybe<Scalars['String']['output']>
+  /** Gets or sets the playback URL for this playlist entry when precomputed (e.g., images). */
+  playbackUrl?: Maybe<Scalars['String']['output']>
+  /** Gets or sets the primary person (e.g., artist for tracks, director for movies). */
+  primaryPerson?: Maybe<Item>
+  /** Gets or sets a value indicating whether this item has been served to the client. */
+  served: Scalars['Boolean']['output']
+  /** Gets or sets additional context like episode number or track number. */
+  subtitle?: Maybe<Scalars['String']['output']>
+  /** Gets or sets the thumbnail URI for the item. */
+  thumbUri?: Maybe<Scalars['String']['output']>
+  /** Gets or sets the title of the item. */
+  title: Scalars['String']['output']
+}
+
+/** Input for jumping to a specific index in the playlist. */
+export type PlaylistJumpInput = {
+  /** Gets or sets the 0-based index to jump to. */
+  index: Scalars['Int']['input']
+  /** Gets or sets the playlist generator identifier. */
+  playlistGeneratorId: Scalars['UUID']['input']
+}
+
+/** Input for setting shuffle or repeat mode on a playlist. */
+export type PlaylistModeInput = {
+  /** Gets or sets a value indicating whether the mode should be enabled. */
+  enabled: Scalars['Boolean']['input']
+  /** Gets or sets the playlist generator identifier. */
+  playlistGeneratorId: Scalars['UUID']['input']
+}
+
+/** Input for navigating to next/previous item in a playlist. */
+export type PlaylistNavigateInput = {
+  /** Gets or sets the playlist generator identifier. */
+  playlistGeneratorId: Scalars['UUID']['input']
+}
+
+/** Payload returned after navigating in a playlist or changing modes. */
+export type PlaylistNavigatePayload = {
+  __typename?: 'PlaylistNavigatePayload'
+  /** Gets or sets the current cursor position. */
+  currentIndex: Scalars['Int']['output']
+  /** Gets or sets the current playlist item after navigation. */
+  currentItem?: Maybe<PlaylistItemPayload>
+  query: Query
+  /** Gets or sets a value indicating whether repeat mode is enabled. */
+  repeat: Scalars['Boolean']['output']
+  /** Gets or sets a value indicating whether shuffle mode is enabled. */
+  shuffle: Scalars['Boolean']['output']
+  /** Gets or sets a value indicating whether the operation succeeded. */
+  success: Scalars['Boolean']['output']
+  /** Gets or sets the total count of items in the playlist. */
+  totalCount: Scalars['Int']['output']
 }
 
 /** GraphQL input describing a condition evaluated against media attributes. */
@@ -1406,6 +2240,14 @@ export type Query = {
    */
   activeJobNotifications: Array<JobNotification>
   /**
+   * Retrieves the admin-defined detail field configuration for a metadata type and optional library scope (admin only).
+   *
+   *
+   * **Returns:**
+   * The stored configuration if found; otherwise null.
+   */
+  adminDetailFieldConfiguration?: Maybe<DetailFieldConfiguration>
+  /**
    * Gets all available metadata agents, sidecar parsers, and embedded metadata extractors.
    * Optionally filtered by library type.
    *
@@ -1423,6 +2265,30 @@ export type Query = {
    */
   browseDirectory: DirectoryListing
   /**
+   * Gets all custom field definitions (admin only).
+   *
+   *
+   * **Returns:**
+   * A collection of custom field definitions.
+   */
+  customFieldDefinitions: Array<CustomFieldDefinition>
+  /**
+   * Gets the detected FFmpeg capabilities and hardware acceleration recommendations (admin only).
+   *
+   *
+   * **Returns:**
+   * The detected FFmpeg capabilities.
+   */
+  ffmpegCapabilities: FfmpegCapabilitiesPayload
+  /**
+   * Gets field definitions for a specific metadata type.
+   *
+   *
+   * **Returns:**
+   * A collection of field definitions.
+   */
+  fieldDefinitionsForType: Array<DetailFieldDefinition>
+  /**
    * Lists filesystem roots (drives, mounts) that can be browsed for library creation.
    *
    *
@@ -1439,6 +2305,14 @@ export type Query = {
    */
   homeHubDefinitions: Array<HubDefinition>
   /**
+   * Retrieves a hub configuration for the given context and scope (admin only).
+   *
+   *
+   * **Returns:**
+   * The stored hub configuration if found; otherwise null.
+   */
+  hubConfiguration?: Maybe<HubConfiguration>
+  /**
    * Gets hub items for a specific hub type and context.
    *
    *
@@ -1454,6 +2328,14 @@ export type Query = {
    * A list of metadata items representing people.
    */
   hubPeople: Array<Item>
+  /**
+   * Gets field definitions for a metadata item's detail page.
+   *
+   *
+   * **Returns:**
+   * A collection of field definitions.
+   */
+  itemDetailFieldDefinitions: Array<DetailFieldDefinition>
   /**
    * Gets hub definitions for an item's detail page.
    *
@@ -1507,6 +2389,14 @@ export type Query = {
   /** Lookup nodes by a list of IDs. */
   nodes: Array<Maybe<Node>>
   /**
+   * Retrieves a chunk of playlist items.
+   *
+   *
+   * **Returns:**
+   * The playlist chunk payload.
+   */
+  playlistChunk: PlaylistChunkPayload
+  /**
    * Searches for metadata items matching the specified query.
    *
    *
@@ -1522,6 +2412,27 @@ export type Query = {
    * The server info object.
    */
   serverInfo: ServerInfo
+  /**
+   * Gets the current server-wide configuration settings.
+   *
+   *
+   * **Returns:**
+   * The current server settings.
+   */
+  serverSettings: ServerSettingsPayload
+  /**
+   * Gets the current transcode settings and detected hardware capabilities (admin only).
+   *
+   *
+   * **Returns:**
+   * The current transcode settings.
+   */
+  transcodeSettings: TranscodeSettingsPayload
+}
+
+/** Defines GraphQL query operations for search. */
+export type QueryAdminDetailFieldConfigurationArgs = {
+  input: DetailFieldConfigurationScopeInput
 }
 
 /** Defines GraphQL query operations for search. */
@@ -1535,6 +2446,16 @@ export type QueryBrowseDirectoryArgs = {
 }
 
 /** Defines GraphQL query operations for search. */
+export type QueryFieldDefinitionsForTypeArgs = {
+  metadataType: MetadataType
+}
+
+/** Defines GraphQL query operations for search. */
+export type QueryHubConfigurationArgs = {
+  input: HubConfigurationScopeInput
+}
+
+/** Defines GraphQL query operations for search. */
 export type QueryHubItemsArgs = {
   input: GetHubItemsInput
 }
@@ -1543,6 +2464,11 @@ export type QueryHubItemsArgs = {
 export type QueryHubPeopleArgs = {
   hubType: HubType
   metadataItemId: Scalars['ID']['input']
+}
+
+/** Defines GraphQL query operations for search. */
+export type QueryItemDetailFieldDefinitionsArgs = {
+  itemId: Scalars['ID']['input']
 }
 
 /** Defines GraphQL query operations for search. */
@@ -1596,6 +2522,11 @@ export type QueryNodesArgs = {
 }
 
 /** Defines GraphQL query operations for search. */
+export type QueryPlaylistChunkArgs = {
+  input: PlaylistChunkInput
+}
+
+/** Defines GraphQL query operations for search. */
 export type QuerySearchArgs = {
   limit?: Scalars['Int']['input']
   pivot?: SearchPivot
@@ -1611,6 +2542,12 @@ export type RefreshItemMetadataInput = {
   includeChildren: Scalars['Boolean']['input']
   /** Gets or sets the metadata item identifier. */
   itemId: Scalars['ID']['input']
+  /**
+   * Gets or sets optional field names to force update, bypassing any locks.
+   * Use constants from MetadataFieldNames for built-in fields.
+   * When not specified or empty, locked fields are respected.
+   */
+  overrideFields?: InputMaybe<Array<Scalars['String']['input']>>
 }
 
 /** Input for refreshing metadata for an entire library section. */
@@ -1701,9 +2638,79 @@ export type ServerInfo = {
   versionString: Scalars['String']['output']
 }
 
+/** Payload containing server-wide configuration settings. */
+export type ServerSettingsPayload = {
+  __typename?: 'ServerSettingsPayload'
+  /** Whether to allow HEVC encoding when transcoding video. */
+  allowHEVCEncoding: Scalars['Boolean']['output']
+  /** Whether to allow remuxing (container change without re-encoding). */
+  allowRemuxing: Scalars['Boolean']['output']
+  /** List of allowed tags (empty = no allowlist). */
+  allowedTags: Array<Scalars['String']['output']>
+  /** List of blocked tags (empty = no blocklist). */
+  blockedTags: Array<Scalars['String']['output']>
+  /** Default audio codec for DASH transcoding. */
+  dashAudioCodec: Scalars['String']['output']
+  /** DASH segment duration in seconds. */
+  dashSegmentDurationSeconds: Scalars['Int']['output']
+  /** Default video codec for DASH transcoding. */
+  dashVideoCodec: Scalars['String']['output']
+  /** Whether tone mapping is enabled for HDR content. */
+  enableToneMapping: Scalars['Boolean']['output']
+  /** Genre normalization mappings (input → canonical). */
+  genreMappings: Array<KeyValuePairOfStringAndString>
+  /** Minimum log level (Debug, Information, Warning, Error, Fatal). */
+  logLevel: Scalars['String']['output']
+  /** Maximum streaming bitrate in bits per second. */
+  maxStreamingBitrate: Scalars['Int']['output']
+  /** Whether to prefer H.265 (HEVC) codec for video transcoding. */
+  preferH265: Scalars['Boolean']['output']
+  query: Query
+  /** The friendly display name of the server. */
+  serverName: Scalars['String']['output']
+  /** User's preferred hardware acceleration (null = auto-detect). */
+  userPreferredAcceleration?: Maybe<HardwareAccelerationKind>
+}
+
 export enum SortEnumType {
   Asc = 'ASC',
   Desc = 'DESC',
+}
+
+/** Represents an available sort field option for browsing a library section. */
+export type SortField = {
+  __typename?: 'SortField'
+  /** Gets the user-facing display name for this sort field. */
+  displayName: Scalars['String']['output']
+  /**
+   * Gets the unique key identifier for this sort field.
+   * This key should be used when constructing sort input objects.
+   */
+  key: Scalars['String']['output']
+  /**
+   * Gets a value indicating whether sorting by this field requires user-specific data.
+   * When true, sorting uses a SQL join to user data (e.g., Progress, Date Viewed, Plays).
+   * When false, sorting can be performed efficiently without additional joins.
+   */
+  requiresUserData: Scalars['Boolean']['output']
+}
+
+/** Input for starting a full library scan. */
+export type StartLibraryScanInput = {
+  /** Gets or sets the library section identifier. */
+  librarySectionId: Scalars['ID']['input']
+}
+
+/** GraphQL payload indicating the outcome of a library scan request. */
+export type StartLibraryScanPayload = {
+  __typename?: 'StartLibraryScanPayload'
+  /** Gets an optional error description for failed requests. */
+  error?: Maybe<Scalars['String']['output']>
+  query: Query
+  /** Gets the scan job identifier. */
+  scanId?: Maybe<Scalars['Int']['output']>
+  /** Gets a value indicating whether the request succeeded. */
+  success: Scalars['Boolean']['output']
 }
 
 export type StringOperationFilterInput = {
@@ -1755,6 +2762,32 @@ export type SubtitleProfileInput = {
   protocol?: InputMaybe<Scalars['String']['input']>
 }
 
+/** Payload returned after updating or retrieving transcode settings. */
+export type TranscodeSettingsPayload = {
+  __typename?: 'TranscodeSettingsPayload'
+  /** List of available FFmpeg encoders. */
+  availableEncoders: Array<Scalars['String']['output']>
+  /** List of available FFmpeg filters. */
+  availableFilters: Array<Scalars['String']['output']>
+  /** Default audio codec for DASH transcoding. */
+  dashAudioCodec: Scalars['String']['output']
+  /** DASH segment duration in seconds. */
+  dashSegmentDurationSeconds: Scalars['Int']['output']
+  /** Default video codec for DASH transcoding. */
+  dashVideoCodec: Scalars['String']['output']
+  /** Dictionary of detected hardware acceleration capabilities. */
+  detectedCapabilities: Array<KeyValuePairOfStringAndBoolean>
+  /** The currently active hardware acceleration. */
+  effectiveAcceleration: HardwareAccelerationKind
+  /** Whether tone mapping is enabled. */
+  enableToneMapping: Scalars['Boolean']['output']
+  query: Query
+  /** The system-recommended hardware acceleration for this platform. */
+  recommendedAcceleration: HardwareAccelerationKind
+  /** The user's manually specified preference (null = auto). */
+  userPreferredAcceleration?: Maybe<HardwareAccelerationKind>
+}
+
 /** GraphQL input describing an allowed transcoding target. */
 export type TranscodingProfileInput = {
   /** Gets or sets the conditions under which this profile applies. */
@@ -1777,10 +2810,183 @@ export type TranscodingProfileInput = {
   videoCodec?: InputMaybe<Scalars['String']['input']>
 }
 
+/** Input for unlocking fields on a metadata item. */
+export type UnlockMetadataFieldsInput = {
+  /** The field names to unlock. */
+  fields: Array<Scalars['String']['input']>
+  /** The UUID of the metadata item to unlock fields on. */
+  itemId: Scalars['ID']['input']
+}
+
 /** Input for unpromoting a metadata item from the hero carousel. */
 export type UnpromoteItemInput = {
   /** Gets or sets the metadata item identifier to unpromote. */
   itemId: Scalars['ID']['input']
+}
+
+/** Input for updating an admin-defined detail field configuration. */
+export type UpdateAdminDetailFieldConfigurationInput = {
+  /** Gets or sets the disabled custom field keys. */
+  disabledCustomFieldKeys?: InputMaybe<Array<Scalars['String']['input']>>
+  /** Gets or sets the disabled field types. */
+  disabledFieldTypes?: InputMaybe<Array<DetailFieldType>>
+  /** Gets or sets the enabled field types in display order. */
+  enabledFieldTypes?: InputMaybe<Array<DetailFieldType>>
+  /** Gets or sets the field-to-group assignments as key-value pairs. */
+  fieldGroupAssignments?: InputMaybe<Array<KeyValuePairOfStringAndStringInput>>
+  /** Gets or sets the list of field group definitions. */
+  fieldGroups?: InputMaybe<Array<DetailFieldGroupInput>>
+  /** Gets or sets the optional library section identifier when scoping the configuration. */
+  librarySectionId?: InputMaybe<Scalars['ID']['input']>
+  /** Gets or sets the metadata type this configuration targets. */
+  metadataType: MetadataType
+}
+
+/** Input type for updating a custom field definition. */
+export type UpdateCustomFieldDefinitionInput = {
+  /**
+   * Gets or sets the new metadata types this field applies to.
+   * Empty list means the field applies to all metadata types.
+   */
+  applicableMetadataTypes?: InputMaybe<Array<MetadataType>>
+  /** Gets or sets the ID of the custom field definition to update. */
+  id: Scalars['ID']['input']
+  /** Gets or sets whether the field is enabled. */
+  isEnabled?: InputMaybe<Scalars['Boolean']['input']>
+  /** Gets or sets the new display label for this field. */
+  label?: InputMaybe<Scalars['String']['input']>
+  /** Gets or sets the new display order of this field. */
+  sortOrder?: InputMaybe<Scalars['Int']['input']>
+  /** Gets or sets the new widget type for rendering this field. */
+  widget?: InputMaybe<DetailFieldWidgetType>
+}
+
+/** Input type for updating user field configuration. */
+export type UpdateDetailFieldConfigurationInput = {
+  /** Gets or sets the list of explicitly disabled field types. */
+  disabledFieldTypes?: InputMaybe<Array<DetailFieldType>>
+  /** Gets or sets the list of enabled field types in display order. */
+  enabledFieldTypes?: InputMaybe<Array<DetailFieldType>>
+  /** Gets or sets the metadata type this configuration applies to. */
+  metadataType: MetadataType
+}
+
+/** Input for updating a hub configuration for a given scope. */
+export type UpdateHubConfigurationInput = {
+  /** Gets or sets the hub context to update. */
+  context: HubContext
+  /** Gets or sets the disabled hub types. */
+  disabledHubTypes?: InputMaybe<Array<HubType>>
+  /** Gets or sets the enabled hub types in display order. */
+  enabledHubTypes?: InputMaybe<Array<HubType>>
+  /** Gets or sets the optional library section identifier for discover/detail scopes. */
+  librarySectionId?: InputMaybe<Scalars['ID']['input']>
+  /** Gets or sets the optional metadata type for item detail scopes. */
+  metadataType?: InputMaybe<MetadataType>
+}
+
+/** Input for updating a metadata item. */
+export type UpdateMetadataItemInput = {
+  /** The new content rating for the item. */
+  contentRating?: InputMaybe<Scalars['String']['input']>
+  /** The external identifiers for the item. */
+  externalIds?: InputMaybe<Array<ExternalIdInput>>
+  /** The custom extra fields for the item. */
+  extraFields?: InputMaybe<Array<ExtraFieldInput>>
+  /** The new genres for the item. */
+  genres?: InputMaybe<Array<Scalars['String']['input']>>
+  /** The UUID of the metadata item to update. */
+  itemId: Scalars['ID']['input']
+  /** The field names that should be locked from automatic updates. */
+  lockedFields?: InputMaybe<Array<Scalars['String']['input']>>
+  /** The new original title for the item. */
+  originalTitle?: InputMaybe<Scalars['String']['input']>
+  /** The new release date for the item. */
+  releaseDate?: InputMaybe<Scalars['LocalDate']['input']>
+  /** The new sort title for the item. */
+  sortTitle?: InputMaybe<Scalars['String']['input']>
+  /** The new summary/description for the item. */
+  summary?: InputMaybe<Scalars['String']['input']>
+  /** The new tagline for the item. */
+  tagline?: InputMaybe<Scalars['String']['input']>
+  /** The new tags for the item. */
+  tags?: InputMaybe<Array<Scalars['String']['input']>>
+  /** The new title for the item. */
+  title?: InputMaybe<Scalars['String']['input']>
+}
+
+/** Payload returned after updating a metadata item. */
+export type UpdateMetadataItemPayload = {
+  __typename?: 'UpdateMetadataItemPayload'
+  /** Error message if the operation failed. */
+  error?: Maybe<Scalars['String']['output']>
+  /** The updated metadata item. */
+  item?: Maybe<Item>
+  query: Query
+  /** Whether the operation was successful. */
+  success: Scalars['Boolean']['output']
+}
+
+/**
+ * Input for updating server-wide configuration settings.
+ * All fields are optional; only specified fields will be updated.
+ */
+export type UpdateServerSettingsInput = {
+  /** Gets a value indicating whether to allow HEVC encoding when transcoding video. */
+  allowHEVCEncoding?: InputMaybe<Scalars['Boolean']['input']>
+  /** Gets a value indicating whether to allow remuxing (container change without re-encoding). */
+  allowRemuxing?: InputMaybe<Scalars['Boolean']['input']>
+  /** Gets the list of allowed tags (empty = no allowlist). */
+  allowedTags?: InputMaybe<Array<Scalars['String']['input']>>
+  /** Gets the list of blocked tags (empty = no blocklist). */
+  blockedTags?: InputMaybe<Array<Scalars['String']['input']>>
+  /** Gets the default audio codec for DASH transcoding. */
+  dashAudioCodec?: InputMaybe<Scalars['String']['input']>
+  /** Gets the DASH segment duration in seconds. */
+  dashSegmentDurationSeconds?: InputMaybe<Scalars['Int']['input']>
+  /** Gets the default video codec for DASH transcoding. */
+  dashVideoCodec?: InputMaybe<Scalars['String']['input']>
+  /** Gets a value indicating whether tone mapping is enabled for HDR content. */
+  enableToneMapping?: InputMaybe<Scalars['Boolean']['input']>
+  /** Gets the genre normalization mappings (input → canonical). */
+  genreMappings?: InputMaybe<Array<KeyValuePairOfStringAndStringInput>>
+  /** Gets the minimum log level (Debug, Information, Warning, Error, Fatal). */
+  logLevel?: InputMaybe<Scalars['String']['input']>
+  /** Gets the maximum streaming bitrate in bits per second. */
+  maxStreamingBitrate?: InputMaybe<Scalars['Int']['input']>
+  /** Gets a value indicating whether to prefer H.265 (HEVC) codec for video transcoding. */
+  preferH265?: InputMaybe<Scalars['Boolean']['input']>
+  /** Gets the friendly display name of the server. */
+  serverName?: InputMaybe<Scalars['String']['input']>
+  /** Gets the user's preferred hardware acceleration (null = auto-detect). */
+  userPreferredAcceleration?: InputMaybe<HardwareAccelerationKind>
+}
+
+/** Input for updating transcode settings. */
+export type UpdateTranscodeSettingsInput = {
+  /** Gets the default audio codec for DASH transcoding. */
+  dashAudioCodec?: InputMaybe<Scalars['String']['input']>
+  /** Gets the DASH segment duration in seconds. */
+  dashSegmentDurationSeconds?: InputMaybe<Scalars['Int']['input']>
+  /** Gets the default video codec for DASH transcoding. */
+  dashVideoCodec?: InputMaybe<Scalars['String']['input']>
+  /** Gets a value indicating whether tone mapping is enabled. */
+  enableToneMapping?: InputMaybe<Scalars['Boolean']['input']>
+  /** Gets the user's preferred hardware acceleration (null = use auto-detected). */
+  userPreferredAcceleration?: InputMaybe<HardwareAccelerationKind>
+}
+
+export type AnalyzeItemMutationVariables = Exact<{
+  itemId: Scalars['ID']['input']
+}>
+
+export type AnalyzeItemMutation = {
+  __typename?: 'Mutation'
+  analyzeItem: {
+    __typename?: 'AnalyzeItemPayload'
+    success: boolean
+    error?: string | null
+  }
 }
 
 export type LibrarySectionsListQueryVariables = Exact<{
@@ -1810,6 +3016,20 @@ export type LibrarySectionsListQuery = {
   } | null
 }
 
+export type StartLibraryScanMutationVariables = Exact<{
+  librarySectionId: Scalars['ID']['input']
+}>
+
+export type StartLibraryScanMutation = {
+  __typename?: 'Mutation'
+  startLibraryScan: {
+    __typename?: 'StartLibraryScanPayload'
+    success: boolean
+    error?: string | null
+    scanId?: number | null
+  }
+}
+
 export type RemoveLibrarySectionMutationVariables = Exact<{
   librarySectionId: Scalars['ID']['input']
 }>
@@ -1821,6 +3041,108 @@ export type RemoveLibrarySectionMutation = {
     success: boolean
     error?: string | null
   }
+}
+
+export type UpdateMetadataItemMutationVariables = Exact<{
+  input: UpdateMetadataItemInput
+}>
+
+export type UpdateMetadataItemMutation = {
+  __typename?: 'Mutation'
+  updateMetadataItem: {
+    __typename?: 'UpdateMetadataItemPayload'
+    success: boolean
+    error?: string | null
+    item?: {
+      __typename?: 'Item'
+      id: string
+      title: string
+      titleSort: string
+      originalTitle: string
+      summary: string
+      tagline: string
+      contentRating: string
+      year: number
+      originallyAvailableAt?: string | null
+      genres: Array<string>
+      tags: Array<string>
+      lockedFields: Array<string>
+      externalIds: Array<{
+        __typename?: 'ExternalId'
+        provider: string
+        value: string
+      }>
+      extraFields: Array<{
+        __typename?: 'ExtraField'
+        key: string
+        value?: any | null
+      }>
+    } | null
+  }
+}
+
+export type LockMetadataFieldsMutationVariables = Exact<{
+  input: LockMetadataFieldsInput
+}>
+
+export type LockMetadataFieldsMutation = {
+  __typename?: 'Mutation'
+  lockMetadataFields: {
+    __typename?: 'MetadataFieldLockPayload'
+    success: boolean
+    error?: string | null
+    lockedFields?: Array<string> | null
+  }
+}
+
+export type UnlockMetadataFieldsMutationVariables = Exact<{
+  input: UnlockMetadataFieldsInput
+}>
+
+export type UnlockMetadataFieldsMutation = {
+  __typename?: 'Mutation'
+  unlockMetadataFields: {
+    __typename?: 'MetadataFieldLockPayload'
+    success: boolean
+    error?: string | null
+    lockedFields?: Array<string> | null
+  }
+}
+
+export type MetadataItemForEditQueryVariables = Exact<{
+  id: Scalars['ID']['input']
+}>
+
+export type MetadataItemForEditQuery = {
+  __typename?: 'Query'
+  metadataItem?: {
+    __typename?: 'Item'
+    id: string
+    metadataType: MetadataType
+    title: string
+    titleSort: string
+    originalTitle: string
+    summary: string
+    tagline: string
+    contentRating: string
+    year: number
+    originallyAvailableAt?: string | null
+    genres: Array<string>
+    tags: Array<string>
+    lockedFields: Array<string>
+    thumbUri?: string | null
+    thumbHash?: string | null
+    externalIds: Array<{
+      __typename?: 'ExternalId'
+      provider: string
+      value: string
+    }>
+    extraFields: Array<{
+      __typename?: 'ExtraField'
+      key: string
+      value?: any | null
+    }>
+  } | null
 }
 
 export type RefreshLibraryMetadataMutationVariables = Exact<{
@@ -1897,6 +3219,69 @@ export type SearchQuery = {
   }>
 }
 
+export type RestartServerMutationVariables = Exact<{ [key: string]: never }>
+
+export type RestartServerMutation = {
+  __typename?: 'Mutation'
+  restartServer: boolean
+}
+
+export type ServerSettingsQueryVariables = Exact<{ [key: string]: never }>
+
+export type ServerSettingsQuery = {
+  __typename?: 'Query'
+  serverSettings: {
+    __typename?: 'ServerSettingsPayload'
+    serverName: string
+    maxStreamingBitrate: number
+    preferH265: boolean
+    allowRemuxing: boolean
+    allowHEVCEncoding: boolean
+    dashVideoCodec: string
+    dashAudioCodec: string
+    dashSegmentDurationSeconds: number
+    enableToneMapping: boolean
+    userPreferredAcceleration?: HardwareAccelerationKind | null
+    allowedTags: Array<string>
+    blockedTags: Array<string>
+    logLevel: string
+    genreMappings: Array<{
+      __typename?: 'KeyValuePairOfStringAndString'
+      key: string
+      value: string
+    }>
+  }
+}
+
+export type UpdateServerSettingsMutationVariables = Exact<{
+  input: UpdateServerSettingsInput
+}>
+
+export type UpdateServerSettingsMutation = {
+  __typename?: 'Mutation'
+  updateServerSettings: {
+    __typename?: 'ServerSettingsPayload'
+    serverName: string
+    maxStreamingBitrate: number
+    preferH265: boolean
+    allowRemuxing: boolean
+    allowHEVCEncoding: boolean
+    dashVideoCodec: string
+    dashAudioCodec: string
+    dashSegmentDurationSeconds: number
+    enableToneMapping: boolean
+    userPreferredAcceleration?: HardwareAccelerationKind | null
+    allowedTags: Array<string>
+    blockedTags: Array<string>
+    logLevel: string
+    genreMappings: Array<{
+      __typename?: 'KeyValuePairOfStringAndString'
+      key: string
+      value: string
+    }>
+  }
+}
+
 export type OnMetadataItemUpdatedSubscriptionVariables = Exact<{
   [key: string]: never
 }>
@@ -1931,7 +3316,7 @@ export type OnJobNotificationSubscription = {
     completedItems: number
     totalItems: number
     isActive: boolean
-    timestamp: any
+    timestamp: Date
   }
 }
 
@@ -2030,11 +3415,35 @@ export type LibrarySectionQuery = {
   } | null
 }
 
+export type LibrarySectionBrowseOptionsQueryVariables = Exact<{
+  contentSourceId: Scalars['ID']['input']
+}>
+
+export type LibrarySectionBrowseOptionsQuery = {
+  __typename?: 'Query'
+  librarySection?: {
+    __typename?: 'LibrarySection'
+    id: string
+    availableRootItemTypes: Array<{
+      __typename?: 'BrowsableItemType'
+      displayName: string
+      metadataTypes: Array<MetadataType>
+    }>
+    availableSortFields: Array<{
+      __typename?: 'SortField'
+      key: string
+      displayName: string
+      requiresUserData: boolean
+    }>
+  } | null
+}
+
 export type LibrarySectionChildrenQueryVariables = Exact<{
   contentSourceId: Scalars['ID']['input']
-  metadataType: MetadataType
+  metadataTypes: Array<MetadataType> | MetadataType
   skip?: InputMaybe<Scalars['Int']['input']>
   take?: InputMaybe<Scalars['Int']['input']>
+  order?: InputMaybe<Array<ItemSortInput> | ItemSortInput>
 }>
 
 export type LibrarySectionChildrenQuery = {
@@ -2048,12 +3457,27 @@ export type LibrarySectionChildrenQuery = {
       items?: Array<{
         __typename?: 'Item'
         id: string
+        isPromoted: boolean
+        librarySectionId: string
         title: string
         year: number
         thumbUri?: string | null
         metadataType: MetadataType
         length: number
+        viewCount: number
         viewOffset: number
+        primaryPerson?: {
+          __typename?: 'Item'
+          id: string
+          title: string
+          metadataType: MetadataType
+        } | null
+        persons: Array<{
+          __typename?: 'Item'
+          id: string
+          title: string
+          metadataType: MetadataType
+        }>
       }> | null
       pageInfo: {
         __typename?: 'CollectionSegmentInfo'
@@ -2066,7 +3490,7 @@ export type LibrarySectionChildrenQuery = {
 
 export type LibrarySectionLetterIndexQueryVariables = Exact<{
   contentSourceId: Scalars['ID']['input']
-  metadataType: MetadataType
+  metadataTypes: Array<MetadataType> | MetadataType
 }>
 
 export type LibrarySectionLetterIndexQuery = {
@@ -2151,7 +3575,9 @@ export type HubItemsQuery = {
     metadataType: MetadataType
     title: string
     year: number
+    index: number
     length: number
+    viewCount: number
     viewOffset: number
     thumbUri?: string | null
     thumbHash?: string | null
@@ -2163,6 +3589,24 @@ export type HubItemsQuery = {
     contentRating: string
     summary: string
     context?: string | null
+    parent?: {
+      __typename?: 'Item'
+      id: string
+      index: number
+      title: string
+    } | null
+    primaryPerson?: {
+      __typename?: 'Item'
+      id: string
+      title: string
+      metadataType: MetadataType
+    } | null
+    persons: Array<{
+      __typename?: 'Item'
+      id: string
+      title: string
+      metadataType: MetadataType
+    }>
   }>
 }
 
@@ -2184,6 +3628,57 @@ export type HubPeopleQuery = {
   }>
 }
 
+export type MetadataItemChildrenQueryVariables = Exact<{
+  itemId: Scalars['ID']['input']
+  skip?: InputMaybe<Scalars['Int']['input']>
+  take?: InputMaybe<Scalars['Int']['input']>
+}>
+
+export type MetadataItemChildrenQuery = {
+  __typename?: 'Query'
+  metadataItem?: {
+    __typename?: 'Item'
+    id: string
+    librarySectionId: string
+    children?: {
+      __typename?: 'ChildrenCollectionSegment'
+      totalCount: number
+      items?: Array<{
+        __typename?: 'Item'
+        id: string
+        isPromoted: boolean
+        librarySectionId: string
+        metadataType: MetadataType
+        title: string
+        year: number
+        index: number
+        length: number
+        viewCount: number
+        viewOffset: number
+        thumbUri?: string | null
+        thumbHash?: string | null
+        primaryPerson?: {
+          __typename?: 'Item'
+          id: string
+          title: string
+          metadataType: MetadataType
+        } | null
+        persons: Array<{
+          __typename?: 'Item'
+          id: string
+          title: string
+          metadataType: MetadataType
+        }>
+      }> | null
+      pageInfo: {
+        __typename?: 'CollectionSegmentInfo'
+        hasNextPage: boolean
+        hasPreviousPage: boolean
+      }
+    } | null
+  } | null
+}
+
 export type MediaQueryVariables = Exact<{
   id: Scalars['ID']['input']
 }>
@@ -2198,15 +3693,151 @@ export type MediaQuery = {
     originalTitle: string
     thumbUri?: string | null
     thumbHash?: string | null
+    artUri?: string | null
+    artHash?: string | null
     metadataType: MetadataType
     year: number
     length: number
     genres: Array<string>
     tags: Array<string>
     contentRating: string
+    viewCount: number
     viewOffset: number
     isPromoted: boolean
+    primaryPerson?: {
+      __typename?: 'Item'
+      id: string
+      title: string
+      metadataType: MetadataType
+    } | null
+    persons: Array<{
+      __typename?: 'Item'
+      id: string
+      title: string
+      metadataType: MetadataType
+    }>
+    extraFields: Array<{
+      __typename?: 'ExtraField'
+      key: string
+      value?: any | null
+    }>
   } | null
+}
+
+export type ItemDetailFieldDefinitionsQueryVariables = Exact<{
+  itemId: Scalars['ID']['input']
+}>
+
+export type ItemDetailFieldDefinitionsQuery = {
+  __typename?: 'Query'
+  itemDetailFieldDefinitions: Array<{
+    __typename?: 'DetailFieldDefinition'
+    key: string
+    fieldType: DetailFieldType
+    label: string
+    widget: DetailFieldWidgetType
+    sortOrder: number
+    customFieldKey?: string | null
+    groupKey?: string | null
+  }>
+}
+
+export type FieldDefinitionsForTypeQueryVariables = Exact<{
+  metadataType: MetadataType
+}>
+
+export type FieldDefinitionsForTypeQuery = {
+  __typename?: 'Query'
+  fieldDefinitionsForType: Array<{
+    __typename?: 'DetailFieldDefinition'
+    key: string
+    fieldType: DetailFieldType
+    label: string
+    widget: DetailFieldWidgetType
+    sortOrder: number
+    customFieldKey?: string | null
+    groupKey?: string | null
+  }>
+}
+
+export type CustomFieldDefinitionsQueryVariables = Exact<{
+  [key: string]: never
+}>
+
+export type CustomFieldDefinitionsQuery = {
+  __typename?: 'Query'
+  customFieldDefinitions: Array<{
+    __typename?: 'CustomFieldDefinition'
+    id: string
+    key: string
+    label: string
+    widget: DetailFieldWidgetType
+    applicableMetadataTypes: Array<MetadataType>
+    sortOrder: number
+    isEnabled: boolean
+  }>
+}
+
+export type CreateCustomFieldDefinitionMutationVariables = Exact<{
+  input: CreateCustomFieldDefinitionInput
+}>
+
+export type CreateCustomFieldDefinitionMutation = {
+  __typename?: 'Mutation'
+  createCustomFieldDefinition: {
+    __typename?: 'CustomFieldDefinition'
+    id: string
+    key: string
+    label: string
+    widget: DetailFieldWidgetType
+    applicableMetadataTypes: Array<MetadataType>
+    sortOrder: number
+    isEnabled: boolean
+  }
+}
+
+export type UpdateCustomFieldDefinitionMutationVariables = Exact<{
+  input: UpdateCustomFieldDefinitionInput
+}>
+
+export type UpdateCustomFieldDefinitionMutation = {
+  __typename?: 'Mutation'
+  updateCustomFieldDefinition: {
+    __typename?: 'CustomFieldDefinition'
+    id: string
+    key: string
+    label: string
+    widget: DetailFieldWidgetType
+    applicableMetadataTypes: Array<MetadataType>
+    sortOrder: number
+    isEnabled: boolean
+  }
+}
+
+export type DeleteCustomFieldDefinitionMutationVariables = Exact<{
+  id: Scalars['ID']['input']
+}>
+
+export type DeleteCustomFieldDefinitionMutation = {
+  __typename?: 'Mutation'
+  deleteCustomFieldDefinition: boolean
+}
+
+export type UpdateDetailFieldConfigurationMutationVariables = Exact<{
+  input: UpdateDetailFieldConfigurationInput
+}>
+
+export type UpdateDetailFieldConfigurationMutation = {
+  __typename?: 'Mutation'
+  updateDetailFieldConfiguration: Array<{
+    __typename?: 'DetailFieldDefinition'
+    key: string
+    fieldType: DetailFieldType
+    label: string
+    widget: DetailFieldWidgetType
+    sortOrder: number
+    customFieldKey?: string | null
+  }>
 }
 
 export type ContentSourceQueryVariables = Exact<{
@@ -2222,20 +3853,6 @@ export type ContentSourceQuery = {
   } | null
 }
 
-export type PlaybackHeartbeatMutationVariables = Exact<{
-  input: PlaybackHeartbeatInput
-}>
-
-export type PlaybackHeartbeatMutation = {
-  __typename?: 'Mutation'
-  playbackHeartbeat: {
-    __typename?: 'PlaybackHeartbeatPayload'
-    playbackSessionId: any
-    capabilityProfileVersion: number
-    capabilityVersionMismatch: boolean
-  }
-}
-
 export type DecidePlaybackMutationVariables = Exact<{
   input: PlaybackDecisionInput
 }>
@@ -2247,6 +3864,10 @@ export type DecidePlaybackMutation = {
     action: string
     streamPlanJson: string
     nextItemId?: string | null
+    nextItemTitle?: string | null
+    nextItemOriginalTitle?: string | null
+    nextItemParentTitle?: string | null
+    nextItemThumbUrl?: string | null
     playbackUrl: string
     trickplayUrl?: string | null
     capabilityProfileVersion: number
@@ -2254,18 +3875,236 @@ export type DecidePlaybackMutation = {
   }
 }
 
-export type PlaybackSeekMutationVariables = Exact<{
-  input: PlaybackSeekInput
+export type PlaybackHeartbeatMutationVariables = Exact<{
+  input: PlaybackHeartbeatInput
 }>
 
-export type PlaybackSeekMutation = {
+export type PlaybackHeartbeatMutation = {
   __typename?: 'Mutation'
-  playbackSeek: {
-    __typename?: 'PlaybackSeekPayload'
-    keyframeMs: any
-    gopDurationMs: any
-    hasGopIndex: boolean
-    originalTargetMs: any
+  playbackHeartbeat: {
+    __typename?: 'PlaybackHeartbeatPayload'
+    playbackSessionId: string
+    capabilityProfileVersion: number
+    capabilityVersionMismatch: boolean
+  }
+}
+
+export type PlaylistChunkQueryVariables = Exact<{
+  input: PlaylistChunkInput
+}>
+
+export type PlaylistChunkQuery = {
+  __typename?: 'Query'
+  playlistChunk: {
+    __typename?: 'PlaylistChunkPayload'
+    playlistGeneratorId: string
+    currentIndex: number
+    totalCount: number
+    hasMore: boolean
+    shuffle: boolean
+    repeat: boolean
+    items: Array<{
+      __typename?: 'PlaylistItemPayload'
+      itemEntryId: number
+      itemId: string
+      index: number
+      served: boolean
+      title: string
+      metadataType: string
+      durationMs?: BigInt | null
+      playbackUrl?: string | null
+      thumbUri?: string | null
+      parentTitle?: string | null
+      subtitle?: string | null
+      primaryPerson?: {
+        __typename?: 'Item'
+        id: string
+        title: string
+        metadataType: MetadataType
+      } | null
+    }>
+  }
+}
+
+export type PlaylistNextMutationVariables = Exact<{
+  input: PlaylistNavigateInput
+}>
+
+export type PlaylistNextMutation = {
+  __typename?: 'Mutation'
+  playlistNext: {
+    __typename?: 'PlaylistNavigatePayload'
+    success: boolean
+    shuffle: boolean
+    repeat: boolean
+    currentIndex: number
+    totalCount: number
+    currentItem?: {
+      __typename?: 'PlaylistItemPayload'
+      itemEntryId: number
+      itemId: string
+      index: number
+      served: boolean
+      title: string
+      metadataType: string
+      durationMs?: BigInt | null
+      thumbUri?: string | null
+      parentTitle?: string | null
+      subtitle?: string | null
+      primaryPerson?: {
+        __typename?: 'Item'
+        id: string
+        title: string
+        metadataType: MetadataType
+      } | null
+    } | null
+  }
+}
+
+export type PlaylistPreviousMutationVariables = Exact<{
+  input: PlaylistNavigateInput
+}>
+
+export type PlaylistPreviousMutation = {
+  __typename?: 'Mutation'
+  playlistPrevious: {
+    __typename?: 'PlaylistNavigatePayload'
+    success: boolean
+    shuffle: boolean
+    repeat: boolean
+    currentIndex: number
+    totalCount: number
+    currentItem?: {
+      __typename?: 'PlaylistItemPayload'
+      itemEntryId: number
+      itemId: string
+      index: number
+      served: boolean
+      title: string
+      metadataType: string
+      durationMs?: BigInt | null
+      thumbUri?: string | null
+      parentTitle?: string | null
+      subtitle?: string | null
+      primaryPerson?: {
+        __typename?: 'Item'
+        id: string
+        title: string
+        metadataType: MetadataType
+      } | null
+    } | null
+  }
+}
+
+export type PlaylistJumpMutationVariables = Exact<{
+  input: PlaylistJumpInput
+}>
+
+export type PlaylistJumpMutation = {
+  __typename?: 'Mutation'
+  playlistJump: {
+    __typename?: 'PlaylistNavigatePayload'
+    success: boolean
+    shuffle: boolean
+    repeat: boolean
+    currentIndex: number
+    totalCount: number
+    currentItem?: {
+      __typename?: 'PlaylistItemPayload'
+      itemEntryId: number
+      itemId: string
+      index: number
+      served: boolean
+      title: string
+      metadataType: string
+      durationMs?: BigInt | null
+      playbackUrl?: string | null
+      thumbUri?: string | null
+      parentTitle?: string | null
+      subtitle?: string | null
+      primaryPerson?: {
+        __typename?: 'Item'
+        id: string
+        title: string
+        metadataType: MetadataType
+      } | null
+    } | null
+  }
+}
+
+export type PlaylistSetShuffleMutationVariables = Exact<{
+  input: PlaylistModeInput
+}>
+
+export type PlaylistSetShuffleMutation = {
+  __typename?: 'Mutation'
+  playlistSetShuffle: {
+    __typename?: 'PlaylistNavigatePayload'
+    success: boolean
+    shuffle: boolean
+    repeat: boolean
+    currentIndex: number
+    totalCount: number
+  }
+}
+
+export type PlaylistSetRepeatMutationVariables = Exact<{
+  input: PlaylistModeInput
+}>
+
+export type PlaylistSetRepeatMutation = {
+  __typename?: 'Mutation'
+  playlistSetRepeat: {
+    __typename?: 'PlaylistNavigatePayload'
+    success: boolean
+    shuffle: boolean
+    repeat: boolean
+    currentIndex: number
+    totalCount: number
+  }
+}
+
+export type DecidePlaybackNavigationMutationVariables = Exact<{
+  input: PlaybackDecisionInput
+}>
+
+export type DecidePlaybackNavigationMutation = {
+  __typename?: 'Mutation'
+  decidePlayback: {
+    __typename?: 'PlaybackDecisionPayload'
+    action: string
+    streamPlanJson: string
+    nextItemId?: string | null
+    nextItemTitle?: string | null
+    nextItemOriginalTitle?: string | null
+    nextItemParentTitle?: string | null
+    nextItemThumbUrl?: string | null
+    playbackUrl: string
+    trickplayUrl?: string | null
+    capabilityProfileVersion: number
+    capabilityVersionMismatch: boolean
+  }
+}
+
+export type ResumePlaybackMutationVariables = Exact<{
+  input: PlaybackResumeInput
+}>
+
+export type ResumePlaybackMutation = {
+  __typename?: 'Mutation'
+  resumePlayback: {
+    __typename?: 'PlaybackResumePayload'
+    playbackSessionId: string
+    currentItemId: string
+    playlistGeneratorId: string
+    playheadMs: BigInt
+    state: string
+    capabilityProfileVersion: number
+    capabilityVersionMismatch: boolean
+    streamPlanJson: string
+    playbackUrl: string
+    trickplayUrl?: string | null
+    durationMs?: BigInt | null
   }
 }
 
@@ -2277,17 +4116,199 @@ export type StartPlaybackMutation = {
   __typename?: 'Mutation'
   startPlayback: {
     __typename?: 'PlaybackStartPayload'
-    playbackSessionId: any
-    playlistGeneratorId: any
+    playbackSessionId: string
+    playlistGeneratorId: string
     capabilityProfileVersion: number
     streamPlanJson: string
     playbackUrl: string
     trickplayUrl?: string | null
-    durationMs?: any | null
+    durationMs?: BigInt | null
     capabilityVersionMismatch: boolean
+    playlistIndex: number
+    playlistTotalCount: number
+    shuffle: boolean
+    repeat: boolean
+    currentItemId?: string | null
+    currentItemMetadataType: string
+    currentItemTitle?: string | null
+    currentItemOriginalTitle?: string | null
+    currentItemParentTitle?: string | null
+    currentItemThumbUrl?: string | null
+    currentItemParentThumbUrl?: string | null
   }
 }
 
+export type StopPlaybackMutationVariables = Exact<{
+  input: PlaybackStopInput
+}>
+
+export type StopPlaybackMutation = {
+  __typename?: 'Mutation'
+  stopPlayback: { __typename?: 'PlaybackStopPayload'; success: boolean }
+}
+
+export type HubConfigurationQueryVariables = Exact<{
+  input: HubConfigurationScopeInput
+}>
+
+export type HubConfigurationQuery = {
+  __typename?: 'Query'
+  hubConfiguration?: {
+    __typename?: 'HubConfiguration'
+    enabledHubTypes: Array<HubType>
+    disabledHubTypes: Array<HubType>
+  } | null
+}
+
+export type UpdateHubConfigurationMutationVariables = Exact<{
+  input: UpdateHubConfigurationInput
+}>
+
+export type UpdateHubConfigurationMutation = {
+  __typename?: 'Mutation'
+  updateHubConfiguration: {
+    __typename?: 'HubConfiguration'
+    enabledHubTypes: Array<HubType>
+    disabledHubTypes: Array<HubType>
+  }
+}
+
+export type AdminDetailFieldConfigurationQueryVariables = Exact<{
+  input: DetailFieldConfigurationScopeInput
+}>
+
+export type AdminDetailFieldConfigurationQuery = {
+  __typename?: 'Query'
+  adminDetailFieldConfiguration?: {
+    __typename?: 'DetailFieldConfiguration'
+    metadataType: MetadataType
+    librarySectionId?: string | null
+    enabledFieldTypes: Array<DetailFieldType>
+    disabledFieldTypes: Array<DetailFieldType>
+    disabledCustomFieldKeys: Array<string>
+    fieldGroups?: Array<{
+      __typename?: 'DetailFieldGroup'
+      groupKey: string
+      label: string
+      layoutType: DetailFieldGroupLayoutType
+      sortOrder: number
+      isCollapsible: boolean
+    }> | null
+    fieldGroupAssignments?: Array<{
+      __typename?: 'KeyValuePairOfStringAndString'
+      key: string
+      value: string
+    }> | null
+  } | null
+}
+
+export type UpdateAdminDetailFieldConfigurationMutationVariables = Exact<{
+  input: UpdateAdminDetailFieldConfigurationInput
+}>
+
+export type UpdateAdminDetailFieldConfigurationMutation = {
+  __typename?: 'Mutation'
+  updateAdminDetailFieldConfiguration: {
+    __typename?: 'DetailFieldConfiguration'
+    metadataType: MetadataType
+    librarySectionId?: string | null
+    enabledFieldTypes: Array<DetailFieldType>
+    disabledFieldTypes: Array<DetailFieldType>
+    disabledCustomFieldKeys: Array<string>
+    fieldGroups?: Array<{
+      __typename?: 'DetailFieldGroup'
+      groupKey: string
+      label: string
+      layoutType: DetailFieldGroupLayoutType
+      sortOrder: number
+      isCollapsible: boolean
+    }> | null
+    fieldGroupAssignments?: Array<{
+      __typename?: 'KeyValuePairOfStringAndString'
+      key: string
+      value: string
+    }> | null
+  }
+}
+
+export type AdminLibrarySectionsListQueryVariables = Exact<{
+  [key: string]: never
+}>
+
+export type AdminLibrarySectionsListQuery = {
+  __typename?: 'Query'
+  librarySections?: {
+    __typename?: 'LibrarySectionsConnection'
+    edges?: Array<{
+      __typename?: 'LibrarySectionsEdge'
+      node: {
+        __typename?: 'LibrarySection'
+        id: string
+        name: string
+        type: LibraryType
+      }
+    }> | null
+  } | null
+}
+
+export const AnalyzeItemDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'AnalyzeItem' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'itemId' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'analyzeItem' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'itemId' },
+                      value: {
+                        kind: 'Variable',
+                        name: { kind: 'Name', value: 'itemId' },
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'error' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<AnalyzeItemMutation, AnalyzeItemMutationVariables>
 export const LibrarySectionsListDocument = {
   kind: 'Document',
   definitions: [
@@ -2417,6 +4438,68 @@ export const LibrarySectionsListDocument = {
   LibrarySectionsListQuery,
   LibrarySectionsListQueryVariables
 >
+export const StartLibraryScanDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'StartLibraryScan' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'librarySectionId' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'startLibraryScan' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'ObjectValue',
+                  fields: [
+                    {
+                      kind: 'ObjectField',
+                      name: { kind: 'Name', value: 'librarySectionId' },
+                      value: {
+                        kind: 'Variable',
+                        name: { kind: 'Name', value: 'librarySectionId' },
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'error' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'scanId' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  StartLibraryScanMutation,
+  StartLibraryScanMutationVariables
+>
 export const RemoveLibrarySectionDocument = {
   kind: 'Document',
   definitions: [
@@ -2477,6 +4560,360 @@ export const RemoveLibrarySectionDocument = {
 } as unknown as DocumentNode<
   RemoveLibrarySectionMutation,
   RemoveLibrarySectionMutationVariables
+>
+export const UpdateMetadataItemDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'UpdateMetadataItem' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'UpdateMetadataItemInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'updateMetadataItem' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'error' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'item' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'titleSort' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'originalTitle' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'summary' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'tagline' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'contentRating' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'year' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'originallyAvailableAt' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'genres' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'tags' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'lockedFields' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'externalIds' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'provider' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'value' },
+                            },
+                          ],
+                        },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'extraFields' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'key' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'value' },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  UpdateMetadataItemMutation,
+  UpdateMetadataItemMutationVariables
+>
+export const LockMetadataFieldsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'LockMetadataFields' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'LockMetadataFieldsInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'lockMetadataFields' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'error' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'lockedFields' },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  LockMetadataFieldsMutation,
+  LockMetadataFieldsMutationVariables
+>
+export const UnlockMetadataFieldsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'UnlockMetadataFields' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'UnlockMetadataFieldsInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'unlockMetadataFields' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'error' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'lockedFields' },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  UnlockMetadataFieldsMutation,
+  UnlockMetadataFieldsMutationVariables
+>
+export const MetadataItemForEditDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'MetadataItemForEdit' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'id' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'metadataItem' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'id' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'id' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'metadataType' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'titleSort' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'originalTitle' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'summary' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'tagline' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'contentRating' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'year' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'originallyAvailableAt' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'genres' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'tags' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'lockedFields' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'externalIds' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'provider' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'extraFields' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                    ],
+                  },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'thumbUri' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'thumbHash' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  MetadataItemForEditQuery,
+  MetadataItemForEditQueryVariables
 >
 export const RefreshLibraryMetadataDocument = {
   kind: 'Document',
@@ -2859,6 +5296,198 @@ export const SearchDocument = {
     },
   ],
 } as unknown as DocumentNode<SearchQuery, SearchQueryVariables>
+export const RestartServerDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'RestartServer' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          { kind: 'Field', name: { kind: 'Name', value: 'restartServer' } },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  RestartServerMutation,
+  RestartServerMutationVariables
+>
+export const ServerSettingsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'ServerSettings' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'serverSettings' },
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'serverName' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'maxStreamingBitrate' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'preferH265' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'allowRemuxing' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'allowHEVCEncoding' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'dashVideoCodec' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'dashAudioCodec' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'dashSegmentDurationSeconds' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'enableToneMapping' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'userPreferredAcceleration' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'allowedTags' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'blockedTags' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'genreMappings' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                    ],
+                  },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'logLevel' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<ServerSettingsQuery, ServerSettingsQueryVariables>
+export const UpdateServerSettingsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'UpdateServerSettings' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'UpdateServerSettingsInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'updateServerSettings' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'serverName' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'maxStreamingBitrate' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'preferH265' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'allowRemuxing' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'allowHEVCEncoding' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'dashVideoCodec' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'dashAudioCodec' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'dashSegmentDurationSeconds' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'enableToneMapping' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'userPreferredAcceleration' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'allowedTags' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'blockedTags' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'genreMappings' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                    ],
+                  },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'logLevel' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  UpdateServerSettingsMutation,
+  UpdateServerSettingsMutationVariables
+>
 export const OnMetadataItemUpdatedDocument = {
   kind: 'Document',
   definitions: [
@@ -3270,6 +5899,92 @@ export const LibrarySectionDocument = {
     },
   ],
 } as unknown as DocumentNode<LibrarySectionQuery, LibrarySectionQueryVariables>
+export const LibrarySectionBrowseOptionsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'LibrarySectionBrowseOptions' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'contentSourceId' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'librarySection' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'id' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'contentSourceId' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'availableRootItemTypes' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'displayName' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'metadataTypes' },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'availableSortFields' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'displayName' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'requiresUserData' },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  LibrarySectionBrowseOptionsQuery,
+  LibrarySectionBrowseOptionsQueryVariables
+>
 export const LibrarySectionChildrenDocument = {
   kind: 'Document',
   definitions: [
@@ -3293,13 +6008,19 @@ export const LibrarySectionChildrenDocument = {
           kind: 'VariableDefinition',
           variable: {
             kind: 'Variable',
-            name: { kind: 'Name', value: 'metadataType' },
+            name: { kind: 'Name', value: 'metadataTypes' },
           },
           type: {
             kind: 'NonNullType',
             type: {
-              kind: 'NamedType',
-              name: { kind: 'Name', value: 'MetadataType' },
+              kind: 'ListType',
+              type: {
+                kind: 'NonNullType',
+                type: {
+                  kind: 'NamedType',
+                  name: { kind: 'Name', value: 'MetadataType' },
+                },
+              },
             },
           },
         },
@@ -3312,6 +6033,23 @@ export const LibrarySectionChildrenDocument = {
           kind: 'VariableDefinition',
           variable: { kind: 'Variable', name: { kind: 'Name', value: 'take' } },
           type: { kind: 'NamedType', name: { kind: 'Name', value: 'Int' } },
+        },
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'order' },
+          },
+          type: {
+            kind: 'ListType',
+            type: {
+              kind: 'NonNullType',
+              type: {
+                kind: 'NamedType',
+                name: { kind: 'Name', value: 'ItemSortInput' },
+              },
+            },
+          },
         },
       ],
       selectionSet: {
@@ -3340,10 +6078,10 @@ export const LibrarySectionChildrenDocument = {
                   arguments: [
                     {
                       kind: 'Argument',
-                      name: { kind: 'Name', value: 'metadataType' },
+                      name: { kind: 'Name', value: 'metadataTypes' },
                       value: {
                         kind: 'Variable',
-                        name: { kind: 'Name', value: 'metadataType' },
+                        name: { kind: 'Name', value: 'metadataTypes' },
                       },
                     },
                     {
@@ -3366,14 +6104,8 @@ export const LibrarySectionChildrenDocument = {
                       kind: 'Argument',
                       name: { kind: 'Name', value: 'order' },
                       value: {
-                        kind: 'ObjectValue',
-                        fields: [
-                          {
-                            kind: 'ObjectField',
-                            name: { kind: 'Name', value: 'title' },
-                            value: { kind: 'EnumValue', value: 'ASC' },
-                          },
-                        ],
+                        kind: 'Variable',
+                        name: { kind: 'Name', value: 'order' },
                       },
                     },
                   ],
@@ -3389,6 +6121,14 @@ export const LibrarySectionChildrenDocument = {
                             {
                               kind: 'Field',
                               name: { kind: 'Name', value: 'id' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'isPromoted' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'librarySectionId' },
                             },
                             {
                               kind: 'Field',
@@ -3412,7 +6152,59 @@ export const LibrarySectionChildrenDocument = {
                             },
                             {
                               kind: 'Field',
+                              name: { kind: 'Name', value: 'viewCount' },
+                            },
+                            {
+                              kind: 'Field',
                               name: { kind: 'Name', value: 'viewOffset' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'primaryPerson' },
+                              selectionSet: {
+                                kind: 'SelectionSet',
+                                selections: [
+                                  {
+                                    kind: 'Field',
+                                    name: { kind: 'Name', value: 'id' },
+                                  },
+                                  {
+                                    kind: 'Field',
+                                    name: { kind: 'Name', value: 'title' },
+                                  },
+                                  {
+                                    kind: 'Field',
+                                    name: {
+                                      kind: 'Name',
+                                      value: 'metadataType',
+                                    },
+                                  },
+                                ],
+                              },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'persons' },
+                              selectionSet: {
+                                kind: 'SelectionSet',
+                                selections: [
+                                  {
+                                    kind: 'Field',
+                                    name: { kind: 'Name', value: 'id' },
+                                  },
+                                  {
+                                    kind: 'Field',
+                                    name: { kind: 'Name', value: 'title' },
+                                  },
+                                  {
+                                    kind: 'Field',
+                                    name: {
+                                      kind: 'Name',
+                                      value: 'metadataType',
+                                    },
+                                  },
+                                ],
+                              },
                             },
                           ],
                         },
@@ -3475,13 +6267,19 @@ export const LibrarySectionLetterIndexDocument = {
           kind: 'VariableDefinition',
           variable: {
             kind: 'Variable',
-            name: { kind: 'Name', value: 'metadataType' },
+            name: { kind: 'Name', value: 'metadataTypes' },
           },
           type: {
             kind: 'NonNullType',
             type: {
-              kind: 'NamedType',
-              name: { kind: 'Name', value: 'MetadataType' },
+              kind: 'ListType',
+              type: {
+                kind: 'NonNullType',
+                type: {
+                  kind: 'NamedType',
+                  name: { kind: 'Name', value: 'MetadataType' },
+                },
+              },
             },
           },
         },
@@ -3512,10 +6310,10 @@ export const LibrarySectionLetterIndexDocument = {
                   arguments: [
                     {
                       kind: 'Argument',
-                      name: { kind: 'Name', value: 'metadataType' },
+                      name: { kind: 'Name', value: 'metadataTypes' },
                       value: {
                         kind: 'Variable',
-                        name: { kind: 'Name', value: 'metadataType' },
+                        name: { kind: 'Name', value: 'metadataTypes' },
                       },
                     },
                   ],
@@ -3767,7 +6565,9 @@ export const HubItemsDocument = {
                 },
                 { kind: 'Field', name: { kind: 'Name', value: 'title' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'year' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'index' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'length' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'viewCount' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'viewOffset' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'thumbUri' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'thumbHash' } },
@@ -3782,6 +6582,48 @@ export const HubItemsDocument = {
                 },
                 { kind: 'Field', name: { kind: 'Name', value: 'summary' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'context' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'parent' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'index' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'primaryPerson' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'metadataType' },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'persons' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'metadataType' },
+                      },
+                    ],
+                  },
+                },
               ],
             },
           },
@@ -3868,6 +6710,224 @@ export const HubPeopleDocument = {
     },
   ],
 } as unknown as DocumentNode<HubPeopleQuery, HubPeopleQueryVariables>
+export const MetadataItemChildrenDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'MetadataItemChildren' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'itemId' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } },
+          },
+        },
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'skip' } },
+          type: { kind: 'NamedType', name: { kind: 'Name', value: 'Int' } },
+        },
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'take' } },
+          type: { kind: 'NamedType', name: { kind: 'Name', value: 'Int' } },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'metadataItem' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'id' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'itemId' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'librarySectionId' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'children' },
+                  arguments: [
+                    {
+                      kind: 'Argument',
+                      name: { kind: 'Name', value: 'skip' },
+                      value: {
+                        kind: 'Variable',
+                        name: { kind: 'Name', value: 'skip' },
+                      },
+                    },
+                    {
+                      kind: 'Argument',
+                      name: { kind: 'Name', value: 'take' },
+                      value: {
+                        kind: 'Variable',
+                        name: { kind: 'Name', value: 'take' },
+                      },
+                    },
+                  ],
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'items' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'id' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'isPromoted' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'librarySectionId' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'metadataType' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'title' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'year' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'index' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'length' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'viewCount' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'viewOffset' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'thumbUri' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'thumbHash' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'primaryPerson' },
+                              selectionSet: {
+                                kind: 'SelectionSet',
+                                selections: [
+                                  {
+                                    kind: 'Field',
+                                    name: { kind: 'Name', value: 'id' },
+                                  },
+                                  {
+                                    kind: 'Field',
+                                    name: { kind: 'Name', value: 'title' },
+                                  },
+                                  {
+                                    kind: 'Field',
+                                    name: {
+                                      kind: 'Name',
+                                      value: 'metadataType',
+                                    },
+                                  },
+                                ],
+                              },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'persons' },
+                              selectionSet: {
+                                kind: 'SelectionSet',
+                                selections: [
+                                  {
+                                    kind: 'Field',
+                                    name: { kind: 'Name', value: 'id' },
+                                  },
+                                  {
+                                    kind: 'Field',
+                                    name: { kind: 'Name', value: 'title' },
+                                  },
+                                  {
+                                    kind: 'Field',
+                                    name: {
+                                      kind: 'Name',
+                                      value: 'metadataType',
+                                    },
+                                  },
+                                ],
+                              },
+                            },
+                          ],
+                        },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'pageInfo' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'hasNextPage' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'hasPreviousPage' },
+                            },
+                          ],
+                        },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'totalCount' },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  MetadataItemChildrenQuery,
+  MetadataItemChildrenQueryVariables
+>
 export const MediaDocument = {
   kind: 'Document',
   definitions: [
@@ -3916,6 +6976,8 @@ export const MediaDocument = {
                 },
                 { kind: 'Field', name: { kind: 'Name', value: 'thumbUri' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'thumbHash' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'artUri' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'artHash' } },
                 {
                   kind: 'Field',
                   name: { kind: 'Name', value: 'metadataType' },
@@ -3928,8 +6990,50 @@ export const MediaDocument = {
                   kind: 'Field',
                   name: { kind: 'Name', value: 'contentRating' },
                 },
+                { kind: 'Field', name: { kind: 'Name', value: 'viewCount' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'viewOffset' } },
                 { kind: 'Field', name: { kind: 'Name', value: 'isPromoted' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'primaryPerson' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'metadataType' },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'persons' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'metadataType' },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'extraFields' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                    ],
+                  },
+                },
               ],
             },
           },
@@ -3938,6 +7042,399 @@ export const MediaDocument = {
     },
   ],
 } as unknown as DocumentNode<MediaQuery, MediaQueryVariables>
+export const ItemDetailFieldDefinitionsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'ItemDetailFieldDefinitions' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'itemId' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'itemDetailFieldDefinitions' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'itemId' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'itemId' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'fieldType' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'label' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'widget' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'sortOrder' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'customFieldKey' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'groupKey' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ItemDetailFieldDefinitionsQuery,
+  ItemDetailFieldDefinitionsQueryVariables
+>
+export const FieldDefinitionsForTypeDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'FieldDefinitionsForType' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'metadataType' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'MetadataType' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'fieldDefinitionsForType' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'metadataType' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'metadataType' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'fieldType' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'label' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'widget' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'sortOrder' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'customFieldKey' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'groupKey' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  FieldDefinitionsForTypeQuery,
+  FieldDefinitionsForTypeQueryVariables
+>
+export const CustomFieldDefinitionsDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'CustomFieldDefinitions' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'customFieldDefinitions' },
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'label' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'widget' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'applicableMetadataTypes' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'sortOrder' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isEnabled' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  CustomFieldDefinitionsQuery,
+  CustomFieldDefinitionsQueryVariables
+>
+export const CreateCustomFieldDefinitionDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'CreateCustomFieldDefinition' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'CreateCustomFieldDefinitionInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'createCustomFieldDefinition' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'label' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'widget' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'applicableMetadataTypes' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'sortOrder' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isEnabled' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  CreateCustomFieldDefinitionMutation,
+  CreateCustomFieldDefinitionMutationVariables
+>
+export const UpdateCustomFieldDefinitionDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'UpdateCustomFieldDefinition' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'UpdateCustomFieldDefinitionInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'updateCustomFieldDefinition' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'label' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'widget' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'applicableMetadataTypes' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'sortOrder' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'isEnabled' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  UpdateCustomFieldDefinitionMutation,
+  UpdateCustomFieldDefinitionMutationVariables
+>
+export const DeleteCustomFieldDefinitionDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'DeleteCustomFieldDefinition' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: { kind: 'Variable', name: { kind: 'Name', value: 'id' } },
+          type: {
+            kind: 'NonNullType',
+            type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'deleteCustomFieldDefinition' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'id' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'id' },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  DeleteCustomFieldDefinitionMutation,
+  DeleteCustomFieldDefinitionMutationVariables
+>
+export const UpdateDetailFieldConfigurationDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'UpdateDetailFieldConfiguration' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: {
+                kind: 'Name',
+                value: 'UpdateDetailFieldConfigurationInput',
+              },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'updateDetailFieldConfiguration' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'fieldType' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'label' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'widget' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'sortOrder' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'customFieldKey' },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  UpdateDetailFieldConfigurationMutation,
+  UpdateDetailFieldConfigurationMutationVariables
+>
 export const ContentSourceDocument = {
   kind: 'Document',
   definitions: [
@@ -3987,6 +7484,94 @@ export const ContentSourceDocument = {
     },
   ],
 } as unknown as DocumentNode<ContentSourceQuery, ContentSourceQueryVariables>
+export const DecidePlaybackDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'DecidePlayback' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'PlaybackDecisionInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'decidePlayback' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'action' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'streamPlanJson' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'nextItemId' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'nextItemTitle' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'nextItemOriginalTitle' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'nextItemParentTitle' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'nextItemThumbUrl' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'playbackUrl' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'trickplayUrl' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'capabilityProfileVersion' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'capabilityVersionMismatch' },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  DecidePlaybackMutation,
+  DecidePlaybackMutationVariables
+>
 export const PlaybackHeartbeatDocument = {
   kind: 'Document',
   definitions: [
@@ -4052,13 +7637,644 @@ export const PlaybackHeartbeatDocument = {
   PlaybackHeartbeatMutation,
   PlaybackHeartbeatMutationVariables
 >
-export const DecidePlaybackDocument = {
+export const PlaylistChunkDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'PlaylistChunk' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'PlaylistChunkInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'playlistChunk' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'playlistGeneratorId' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'items' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'itemEntryId' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'itemId' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'index' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'served' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'metadataType' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'durationMs' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'playbackUrl' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'thumbUri' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'parentTitle' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'subtitle' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'primaryPerson' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'id' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'title' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'metadataType' },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentIndex' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'totalCount' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'hasMore' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'shuffle' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'repeat' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<PlaylistChunkQuery, PlaylistChunkQueryVariables>
+export const PlaylistNextDocument = {
   kind: 'Document',
   definitions: [
     {
       kind: 'OperationDefinition',
       operation: 'mutation',
-      name: { kind: 'Name', value: 'DecidePlayback' },
+      name: { kind: 'Name', value: 'PlaylistNext' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'PlaylistNavigateInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'playlistNext' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentItem' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'itemEntryId' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'itemId' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'index' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'served' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'metadataType' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'durationMs' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'thumbUri' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'parentTitle' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'subtitle' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'primaryPerson' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'id' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'title' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'metadataType' },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'shuffle' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'repeat' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentIndex' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'totalCount' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  PlaylistNextMutation,
+  PlaylistNextMutationVariables
+>
+export const PlaylistPreviousDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'PlaylistPrevious' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'PlaylistNavigateInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'playlistPrevious' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentItem' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'itemEntryId' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'itemId' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'index' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'served' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'metadataType' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'durationMs' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'thumbUri' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'parentTitle' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'subtitle' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'primaryPerson' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'id' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'title' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'metadataType' },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'shuffle' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'repeat' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentIndex' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'totalCount' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  PlaylistPreviousMutation,
+  PlaylistPreviousMutationVariables
+>
+export const PlaylistJumpDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'PlaylistJump' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'PlaylistJumpInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'playlistJump' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentItem' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'itemEntryId' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'itemId' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'index' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'served' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'title' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'metadataType' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'durationMs' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'playbackUrl' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'thumbUri' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'parentTitle' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'subtitle' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'primaryPerson' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'id' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'title' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'metadataType' },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'shuffle' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'repeat' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentIndex' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'totalCount' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  PlaylistJumpMutation,
+  PlaylistJumpMutationVariables
+>
+export const PlaylistSetShuffleDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'PlaylistSetShuffle' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'PlaylistModeInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'playlistSetShuffle' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'shuffle' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'repeat' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentIndex' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'totalCount' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  PlaylistSetShuffleMutation,
+  PlaylistSetShuffleMutationVariables
+>
+export const PlaylistSetRepeatDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'PlaylistSetRepeat' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'PlaylistModeInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'playlistSetRepeat' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'shuffle' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'repeat' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentIndex' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'totalCount' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  PlaylistSetRepeatMutation,
+  PlaylistSetRepeatMutationVariables
+>
+export const DecidePlaybackNavigationDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'DecidePlaybackNavigation' },
       variableDefinitions: [
         {
           kind: 'VariableDefinition',
@@ -4100,6 +8316,22 @@ export const DecidePlaybackDocument = {
                   name: { kind: 'Name', value: 'streamPlanJson' },
                 },
                 { kind: 'Field', name: { kind: 'Name', value: 'nextItemId' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'nextItemTitle' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'nextItemOriginalTitle' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'nextItemParentTitle' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'nextItemThumbUrl' },
+                },
                 { kind: 'Field', name: { kind: 'Name', value: 'playbackUrl' } },
                 {
                   kind: 'Field',
@@ -4121,16 +8353,16 @@ export const DecidePlaybackDocument = {
     },
   ],
 } as unknown as DocumentNode<
-  DecidePlaybackMutation,
-  DecidePlaybackMutationVariables
+  DecidePlaybackNavigationMutation,
+  DecidePlaybackNavigationMutationVariables
 >
-export const PlaybackSeekDocument = {
+export const ResumePlaybackDocument = {
   kind: 'Document',
   definitions: [
     {
       kind: 'OperationDefinition',
       operation: 'mutation',
-      name: { kind: 'Name', value: 'PlaybackSeek' },
+      name: { kind: 'Name', value: 'ResumePlayback' },
       variableDefinitions: [
         {
           kind: 'VariableDefinition',
@@ -4142,7 +8374,7 @@ export const PlaybackSeekDocument = {
             kind: 'NonNullType',
             type: {
               kind: 'NamedType',
-              name: { kind: 'Name', value: 'PlaybackSeekInput' },
+              name: { kind: 'Name', value: 'PlaybackResumeInput' },
             },
           },
         },
@@ -4152,7 +8384,7 @@ export const PlaybackSeekDocument = {
         selections: [
           {
             kind: 'Field',
-            name: { kind: 'Name', value: 'playbackSeek' },
+            name: { kind: 'Name', value: 'resumePlayback' },
             arguments: [
               {
                 kind: 'Argument',
@@ -4166,16 +8398,38 @@ export const PlaybackSeekDocument = {
             selectionSet: {
               kind: 'SelectionSet',
               selections: [
-                { kind: 'Field', name: { kind: 'Name', value: 'keyframeMs' } },
                 {
                   kind: 'Field',
-                  name: { kind: 'Name', value: 'gopDurationMs' },
+                  name: { kind: 'Name', value: 'playbackSessionId' },
                 },
-                { kind: 'Field', name: { kind: 'Name', value: 'hasGopIndex' } },
                 {
                   kind: 'Field',
-                  name: { kind: 'Name', value: 'originalTargetMs' },
+                  name: { kind: 'Name', value: 'currentItemId' },
                 },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'playlistGeneratorId' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'playheadMs' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'state' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'capabilityProfileVersion' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'capabilityVersionMismatch' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'streamPlanJson' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'playbackUrl' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'trickplayUrl' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'durationMs' } },
               ],
             },
           },
@@ -4184,8 +8438,8 @@ export const PlaybackSeekDocument = {
     },
   ],
 } as unknown as DocumentNode<
-  PlaybackSeekMutation,
-  PlaybackSeekMutationVariables
+  ResumePlaybackMutation,
+  ResumePlaybackMutationVariables
 >
 export const StartPlaybackDocument = {
   kind: 'Document',
@@ -4255,6 +8509,44 @@ export const StartPlaybackDocument = {
                   kind: 'Field',
                   name: { kind: 'Name', value: 'capabilityVersionMismatch' },
                 },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'playlistIndex' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'playlistTotalCount' },
+                },
+                { kind: 'Field', name: { kind: 'Name', value: 'shuffle' } },
+                { kind: 'Field', name: { kind: 'Name', value: 'repeat' } },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentItemId' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentItemMetadataType' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentItemTitle' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentItemOriginalTitle' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentItemParentTitle' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentItemThumbUrl' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'currentItemParentThumbUrl' },
+                },
               ],
             },
           },
@@ -4265,4 +8557,492 @@ export const StartPlaybackDocument = {
 } as unknown as DocumentNode<
   StartPlaybackMutation,
   StartPlaybackMutationVariables
+>
+export const StopPlaybackDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'StopPlayback' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'PlaybackStopInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'stopPlayback' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'success' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  StopPlaybackMutation,
+  StopPlaybackMutationVariables
+>
+export const HubConfigurationDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'HubConfiguration' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'HubConfigurationScopeInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'hubConfiguration' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'enabledHubTypes' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'disabledHubTypes' },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  HubConfigurationQuery,
+  HubConfigurationQueryVariables
+>
+export const UpdateHubConfigurationDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'UpdateHubConfiguration' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: { kind: 'Name', value: 'UpdateHubConfigurationInput' },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'updateHubConfiguration' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'enabledHubTypes' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'disabledHubTypes' },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  UpdateHubConfigurationMutation,
+  UpdateHubConfigurationMutationVariables
+>
+export const AdminDetailFieldConfigurationDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'AdminDetailFieldConfiguration' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: {
+                kind: 'Name',
+                value: 'DetailFieldConfigurationScopeInput',
+              },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'adminDetailFieldConfiguration' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'metadataType' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'librarySectionId' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'enabledFieldTypes' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'disabledFieldTypes' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'disabledCustomFieldKeys' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'fieldGroups' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'groupKey' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'label' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'layoutType' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'sortOrder' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'isCollapsible' },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'fieldGroupAssignments' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  AdminDetailFieldConfigurationQuery,
+  AdminDetailFieldConfigurationQueryVariables
+>
+export const UpdateAdminDetailFieldConfigurationDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'mutation',
+      name: { kind: 'Name', value: 'UpdateAdminDetailFieldConfiguration' },
+      variableDefinitions: [
+        {
+          kind: 'VariableDefinition',
+          variable: {
+            kind: 'Variable',
+            name: { kind: 'Name', value: 'input' },
+          },
+          type: {
+            kind: 'NonNullType',
+            type: {
+              kind: 'NamedType',
+              name: {
+                kind: 'Name',
+                value: 'UpdateAdminDetailFieldConfigurationInput',
+              },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: {
+              kind: 'Name',
+              value: 'updateAdminDetailFieldConfiguration',
+            },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'input' },
+                value: {
+                  kind: 'Variable',
+                  name: { kind: 'Name', value: 'input' },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'metadataType' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'librarySectionId' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'enabledFieldTypes' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'disabledFieldTypes' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'disabledCustomFieldKeys' },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'fieldGroups' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'groupKey' },
+                      },
+                      { kind: 'Field', name: { kind: 'Name', value: 'label' } },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'layoutType' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'sortOrder' },
+                      },
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'isCollapsible' },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'fieldGroupAssignments' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      { kind: 'Field', name: { kind: 'Name', value: 'key' } },
+                      { kind: 'Field', name: { kind: 'Name', value: 'value' } },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  UpdateAdminDetailFieldConfigurationMutation,
+  UpdateAdminDetailFieldConfigurationMutationVariables
+>
+export const AdminLibrarySectionsListDocument = {
+  kind: 'Document',
+  definitions: [
+    {
+      kind: 'OperationDefinition',
+      operation: 'query',
+      name: { kind: 'Name', value: 'AdminLibrarySectionsList' },
+      selectionSet: {
+        kind: 'SelectionSet',
+        selections: [
+          {
+            kind: 'Field',
+            name: { kind: 'Name', value: 'librarySections' },
+            arguments: [
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'first' },
+                value: { kind: 'IntValue', value: '50' },
+              },
+              {
+                kind: 'Argument',
+                name: { kind: 'Name', value: 'order' },
+                value: {
+                  kind: 'ListValue',
+                  values: [
+                    {
+                      kind: 'ObjectValue',
+                      fields: [
+                        {
+                          kind: 'ObjectField',
+                          name: { kind: 'Name', value: 'name' },
+                          value: { kind: 'EnumValue', value: 'ASC' },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            ],
+            selectionSet: {
+              kind: 'SelectionSet',
+              selections: [
+                {
+                  kind: 'Field',
+                  name: { kind: 'Name', value: 'edges' },
+                  selectionSet: {
+                    kind: 'SelectionSet',
+                    selections: [
+                      {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'node' },
+                        selectionSet: {
+                          kind: 'SelectionSet',
+                          selections: [
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'id' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'name' },
+                            },
+                            {
+                              kind: 'Field',
+                              name: { kind: 'Name', value: 'type' },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  AdminLibrarySectionsListQuery,
+  AdminLibrarySectionsListQueryVariables
 >

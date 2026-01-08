@@ -3,6 +3,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
 using NexaMediaServer.Core.Entities;
 
 namespace NexaMediaServer.Infrastructure.Data.Configurations;
@@ -18,6 +19,7 @@ public class PlaylistGeneratorItemConfiguration : IEntityTypeConfiguration<Playl
         builder.HasKey(e => e.Id);
 
         builder.Property(e => e.SortOrder).IsRequired();
+        builder.Property(e => e.OriginalSortOrder).IsRequired();
         builder.Property(e => e.Served).HasDefaultValue(false);
         builder.Property(e => e.Cohort).HasMaxLength(128);
 

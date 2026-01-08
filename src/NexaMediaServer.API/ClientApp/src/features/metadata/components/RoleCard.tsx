@@ -1,10 +1,10 @@
 import { Link } from '@tanstack/react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
-import type { Role } from '@/shared/api/graphql/graphql'
+import type { Item } from '@/shared/api/graphql/graphql'
 
 import { ITEM_CARD_MAX_WIDTH_PX } from '@/features/content-sources/lib/itemCardSizing'
-import { getImageTranscodeUrl } from '@/shared/lib/images'
+import { Image } from '@/shared/components/Image'
 import { cn } from '@/shared/lib/utils'
 
 type RoleCardProps = Readonly<{
@@ -12,7 +12,7 @@ type RoleCardProps = Readonly<{
   className?: string
   librarySectionId: string
   renderWidthPx?: number
-  role: Pick<Role, 'name' | 'personId' | 'relationship' | 'thumbUrl'>
+  role: Pick<Item, 'context' | 'id' | 'thumbHash' | 'thumbUri' | 'title'>
 }>
 
 export function RoleCard({
@@ -22,42 +22,16 @@ export function RoleCard({
   renderWidthPx,
   role,
 }: RoleCardProps) {
-  const { name, personId, relationship, thumbUrl } = role
+  const { context, id, thumbHash, thumbUri, title } = role
   const resolvedWidthPx = useMemo(
     () => renderWidthPx ?? cardWidthPx,
     [cardWidthPx, renderWidthPx],
   )
-  const initial = name
+  const initial = title
     .trim()
     .charAt(0)
     .toUpperCase()
     .replace(/[^A-Z0-9]/i, '?')
-
-  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined)
-
-  useEffect(() => {
-    let cancelled = false
-    if (!thumbUrl) {
-      setImageUrl(undefined)
-      return () => {
-        cancelled = true
-      }
-    }
-
-    void getImageTranscodeUrl(thumbUrl, {
-      height: Math.round(resolvedWidthPx),
-      quality: 90,
-      width: Math.round(resolvedWidthPx),
-    }).then((url) => {
-      if (!cancelled) {
-        setImageUrl(url)
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [thumbUrl, resolvedWidthPx])
 
   return (
     <Link
@@ -69,7 +43,7 @@ export function RoleCard({
         `,
         className,
       )}
-      params={{ contentSourceId: librarySectionId, metadataItemId: personId }}
+      params={{ contentSourceId: librarySectionId, metadataItemId: id }}
       style={{ width: resolvedWidthPx }}
       to="/section/$contentSourceId/details/$metadataItemId"
     >
@@ -80,17 +54,18 @@ export function RoleCard({
         )}
       >
         {(() => {
-          const displayUrl = imageUrl ?? thumbUrl
-          if (displayUrl) {
+          if (thumbUri) {
             return (
-              <img
-                alt={name}
+              <Image
+                alt={title}
                 className={cn(
                   'absolute inset-0 h-full w-full object-cover',
                   'transition-transform duration-300 ease-out',
                 )}
-                loading="lazy"
-                src={displayUrl}
+                height={resolvedWidthPx}
+                imageUri={thumbUri}
+                thumbHash={thumbHash ?? undefined}
+                width={resolvedWidthPx}
               />
             )
           }
@@ -123,11 +98,11 @@ export function RoleCard({
 
       <div className="space-y-0.5 px-0.5 text-center">
         <p className="line-clamp-1 font-medium text-foreground">
-          {name || 'Unknown'}
+          {title || 'Unknown'}
         </p>
-        {relationship ? (
+        {context ? (
           <p className={`line-clamp-1 text-sm text-muted-foreground`}>
-            {relationship}
+            {context}
           </p>
         ) : null}
       </div>

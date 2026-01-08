@@ -53,7 +53,9 @@ export const HubItemsQuery = graphql(`
       metadataType
       title
       year
+      index
       length
+      viewCount
       viewOffset
       thumbUri
       thumbHash
@@ -65,6 +67,21 @@ export const HubItemsQuery = graphql(`
       contentRating
       summary
       context
+      parent {
+        id
+        index
+        title
+      }
+      primaryPerson {
+        id
+        title
+        metadataType
+      }
+      persons {
+        id
+        title
+        metadataType
+      }
     }
   }
 `)
@@ -78,6 +95,46 @@ export const HubPeopleQuery = graphql(`
       thumbUri
       thumbHash
       context
+    }
+  }
+`)
+
+export const MetadataItemChildrenQuery = graphql(`
+  query MetadataItemChildren($itemId: ID!, $skip: Int, $take: Int) {
+    metadataItem(id: $itemId) {
+      id
+      librarySectionId
+      children(skip: $skip, take: $take) {
+        items {
+          id
+          isPromoted
+          librarySectionId
+          metadataType
+          title
+          year
+          index
+          length
+          viewCount
+          viewOffset
+          thumbUri
+          thumbHash
+          primaryPerson {
+            id
+            title
+            metadataType
+          }
+          persons {
+            id
+            title
+            metadataType
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+        totalCount
+      }
     }
   }
 `)

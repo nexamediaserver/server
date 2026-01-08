@@ -3,47 +3,52 @@ import type { ReactNode } from 'react'
 import { useApolloClient } from '@apollo/client/react'
 import { useIdle, useThrottle } from '@uidotdev/usehooks'
 import { useAtom } from 'jotai'
-import { Duration } from 'luxon'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import IconForward10 from '~icons/material-symbols/forward-10'
+import IconClose from '~icons/material-symbols/close'
 import IconFullscreen from '~icons/material-symbols/fullscreen'
 import IconChevronDown from '~icons/material-symbols/keyboard-arrow-down'
 import IconChevronUp from '~icons/material-symbols/keyboard-arrow-up'
-import IconPause from '~icons/material-symbols/pause'
-import IconPlay from '~icons/material-symbols/play-arrow'
-import IconReplay10 from '~icons/material-symbols/replay-10'
-import IconNext from '~icons/material-symbols/skip-next'
-import IconPrevious from '~icons/material-symbols/skip-previous'
-import IconStop from '~icons/material-symbols/stop'
-import IconVolumeDown from '~icons/material-symbols/volume-down'
-import IconVolumeMute from '~icons/material-symbols/volume-mute'
-import IconVolumeOff from '~icons/material-symbols/volume-off'
-import IconVolumeUp from '~icons/material-symbols/volume-up'
+import IconQueueMusic from '~icons/material-symbols/queue-music'
 
-import { graphql } from '@/shared/api/graphql'
 import { Button } from '@/shared/components/ui/button'
-import { Slider } from '@/shared/components/ui/slider'
-import { useKeyboardShortcuts } from '@/shared/hooks'
+import { type KeyboardShortcut, useKeyboardShortcuts } from '@/shared/hooks'
 import { handleErrorStandalone } from '@/shared/hooks/useErrorHandler'
 import { buildPlaybackCapabilityInput } from '@/shared/lib/playbackCapabilities'
 import { cn } from '@/shared/lib/utils'
 
 import { createPlayerShortcuts } from '../config/keyboardShortcuts'
-import { useMediaSession } from '../hooks/useMediaSession'
+import { PlaybackHeartbeatDocument } from '../graphql/playbackHeartbeat'
+import { useImagePrefetch } from '../hooks/useImagePrefetch'
+import {
+  type MediaSessionProvider,
+  useMediaSession,
+} from '../hooks/useMediaSession'
 import { usePlayback } from '../hooks/usePlayback'
+import { usePlaylist } from '../hooks/usePlaylist'
+import { usePlaylistNavigation } from '../hooks/usePlaylistNavigation'
+import { useStopPlayback } from '../hooks/useStopPlayback'
+import { AudioMediaSessionProvider } from '../providers/AudioMediaSessionProvider'
 import { VideoMediaSessionProvider } from '../providers/VideoMediaSessionProvider'
 import { type PlaybackState, playbackStateAtom } from '../store'
+import { AudioPlayer, type AudioPlayerHandle } from './AudioPlayer'
+import {
+  ImageControls,
+  MediaInfo,
+  PlaybackControls,
+  PlayerMenu,
+  ProgressBar,
+  VolumeControls,
+} from './controls'
+import { ImageViewer, type ImageViewerHandle } from './ImageViewer'
+import { PlaylistDrawer } from './playlist/PlaylistDrawer'
 import { ShakaPlayer, type ShakaPlayerHandle } from './ShakaPlayer'
-
-const PlaybackHeartbeatMutation = graphql(`
-  mutation PlaybackHeartbeat($input: PlaybackHeartbeatInput!) {
-    playbackHeartbeat(input: $input) {
-      playbackSessionId
-      capabilityProfileVersion
-      capabilityVersionMismatch
-    }
-  }
-`)
+import {
+  AudioPlayerStatsProvider,
+  ImagePlayerStatsProvider,
+  PlayerStats,
+  type PlayerStatsProvider,
+  VideoPlayerStatsProvider,
+} from './stats'
 
 interface PlaybackHeartbeatResult {
   playbackHeartbeat?: null | {
@@ -55,21 +60,49 @@ interface PlaybackHeartbeatResult {
 /**
  * PlayerContainer component similar to Plex's web client.
  * Shows a fixed player bar at the bottom when playback is active.
+ * Supports video, audio, and image playback with type-specific UI.
  */
 export function PlayerContainer(): ReactNode {
   const [playback] = useAtom(playbackStateAtom)
   const {
     setVolume,
-    stopPlayback,
     toggleMaximize,
     toggleMute,
     togglePlayPause,
     updatePlaybackState,
   } = usePlayback()
+  const { stopPlayback } = useStopPlayback()
+  const { hasNext, hasPrevious, navigateNext, navigatePrevious } =
+    usePlaylistNavigation()
+  const {
+    isRepeat,
+    isShuffle,
+    playlistIndex,
+    setRepeat,
+    setShuffle,
+    totalCount: playlistTotalCount,
+  } = usePlaylist()
   const apolloClient = useApolloClient()
   const playerRef = useRef<ShakaPlayerHandle>(null)
+  const audioPlayerRef = useRef<AudioPlayerHandle>(null)
+  const imageViewerRef = useRef<ImageViewerHandle>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [tooltipVisible, setTooltipVisible] = useState(false)
+  const [isPlaylistOpen, setIsPlaylistOpen] = useState(false)
+  const [mediaSessionProvider, setMediaSessionProvider] =
+    useState<MediaSessionProvider | null>(null)
+  const [playerShortcuts, setPlayerShortcuts] = useState<KeyboardShortcut[]>([])
+  const [statsProvider, setStatsProvider] = useState<
+    PlayerStatsProvider | undefined
+  >(undefined)
+  const [statsEnabled, setStatsEnabled] = useState(false)
+
+  // Determine which player type to use based on media type
+  const isAudio = playback.mediaType === 'music'
+  const isImage = playback.mediaType === 'photo'
+  const isVideo = !isAudio && !isImage
+
+  useImagePrefetch({ windowSize: 3 })
 
   usePlaybackHeartbeat(playback, apolloClient, updatePlaybackState)
 
@@ -84,7 +117,10 @@ export function PlayerContainer(): ReactNode {
     currentTimeMs: safeCurrentTime,
     durationMs: safeDuration,
   } = useMemo(() => {
-    const video = playerRef.current?.getVideoElement()
+    // For images, there's no duration/time - return zeros
+    if (isImage) {
+      return { bufferedTimeMs: 0, currentTimeMs: 0, durationMs: 0 }
+    }
 
     // Prefer server-provided duration as it's authoritative and correct
     // for remuxed/transcoded streams where browser may report incorrect values
@@ -95,41 +131,17 @@ export function PlayerContainer(): ReactNode {
         ? playback.serverDuration
         : undefined
 
-    const videoDurationMs =
-      video && Number.isFinite(video.duration) && video.duration > 0
-        ? video.duration * 1000
-        : undefined
-
-    const shakaDurationMs = (() => {
-      const player = playerRef.current?.getPlayer()
-      const end = player?.seekRange().end
-      return end !== undefined && Number.isFinite(end) && end > 0
-        ? end * 1000
-        : undefined
-    })()
-
     const stateDuration =
       Number.isFinite(playback.duration) && playback.duration > 0
         ? playback.duration
         : undefined
 
-    // Priority: server duration > state duration > video element > shaka player
-    const durationMs =
-      serverDurationMs ??
-      stateDuration ??
-      videoDurationMs ??
-      shakaDurationMs ??
-      0
+    // Priority: server duration > state duration > fallback 0
+    const durationMs = serverDurationMs ?? stateDuration ?? 0
 
     let currentTimeMs = 0
     if (Number.isFinite(playback.currentTime) && playback.currentTime >= 0) {
       currentTimeMs = playback.currentTime
-    } else if (
-      video &&
-      Number.isFinite(video.currentTime) &&
-      video.currentTime >= 0
-    ) {
-      currentTimeMs = video.currentTime * 1000
     }
 
     const bufferedTimeMs =
@@ -139,6 +151,7 @@ export function PlayerContainer(): ReactNode {
 
     return { bufferedTimeMs, currentTimeMs, durationMs }
   }, [
+    isImage,
     playback.serverDuration,
     playback.duration,
     playback.currentTime,
@@ -216,9 +229,14 @@ export function PlayerContainer(): ReactNode {
     }
   }, [playback.maximized])
 
-  // Fetch thumbnail based on throttled position to limit API call frequency
+  // Fetch thumbnail based on throttled position to limit API call frequency (video only)
   useEffect(() => {
-    if (!tooltipVisible || safeDuration === 0 || !playback.originator) {
+    if (
+      !tooltipVisible ||
+      safeDuration === 0 ||
+      !playback.originator ||
+      !isVideo
+    ) {
       return
     }
 
@@ -255,79 +273,154 @@ export function PlayerContainer(): ReactNode {
     tooltipVisible,
     safeDuration,
     playback.originator,
+    isVideo,
   ])
 
+  // Get the active player reference for seek operations
+  const getActivePlayer = useCallback(() => {
+    if (isAudio) return audioPlayerRef.current
+    if (isVideo) return playerRef.current
+    return null
+  }, [isAudio, isVideo])
+
   const handleProgressChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!playerRef.current || safeDuration === 0) return
+    const activePlayer = getActivePlayer()
+    if (!activePlayer || safeDuration === 0) return
 
     const newTime = event.currentTarget.valueAsNumber
 
     // Seek to the new time (in seconds)
-    playerRef.current.seek(newTime / 1000)
+    activePlayer.seek(newTime / 1000)
   }
 
   const handleRewind10 = useCallback(() => {
-    if (!playerRef.current) return
+    const activePlayer = getActivePlayer()
+    if (!activePlayer) return
     const currentTimeSeconds = playback.currentTime / 1000
     const newTime = Math.max(0, currentTimeSeconds - 10)
-    playerRef.current.seek(newTime)
-  }, [playback.currentTime])
+    activePlayer.seek(newTime)
+  }, [getActivePlayer, playback.currentTime])
 
   const handleFastForward10 = useCallback(() => {
-    if (!playerRef.current) return
+    const activePlayer = getActivePlayer()
+    if (!activePlayer) return
     const currentTimeSeconds = playback.currentTime / 1000
     const durationSeconds = safeDuration / 1000
     const newTime = Math.min(durationSeconds, currentTimeSeconds + 10)
-    playerRef.current.seek(newTime)
-  }, [playback.currentTime, safeDuration])
+    activePlayer.seek(newTime)
+  }, [getActivePlayer, playback.currentTime, safeDuration])
 
   const handleSkipBack10Minutes = useCallback(() => {
-    if (!playerRef.current) return
+    const activePlayer = getActivePlayer()
+    if (!activePlayer) return
     const currentTimeSeconds = playback.currentTime / 1000
     const newTime = Math.max(0, currentTimeSeconds - 600) // 600 seconds = 10 minutes
-    playerRef.current.seek(newTime)
-  }, [playback.currentTime])
+    activePlayer.seek(newTime)
+  }, [getActivePlayer, playback.currentTime])
 
   const handleJumpForward10Minutes = useCallback(() => {
-    if (!playerRef.current) return
+    const activePlayer = getActivePlayer()
+    if (!activePlayer) return
     const currentTimeSeconds = playback.currentTime / 1000
     const durationSeconds = safeDuration / 1000
     const newTime = Math.min(durationSeconds, currentTimeSeconds + 600) // 600 seconds = 10 minutes
-    playerRef.current.seek(newTime)
-  }, [playback.currentTime, safeDuration])
+    activePlayer.seek(newTime)
+  }, [getActivePlayer, playback.currentTime, safeDuration])
 
-  const handleSeek = useCallback((timeInSeconds: number) => {
-    if (!playerRef.current) return
-    playerRef.current.seek(timeInSeconds)
-  }, [])
+  const handleSeek = useCallback(
+    (timeInSeconds: number) => {
+      const activePlayer = getActivePlayer()
+      if (!activePlayer) return
+      activePlayer.seek(timeInSeconds)
+    },
+    [getActivePlayer],
+  )
 
-  // Create Media Session provider for video playback
-  const mediaSessionProvider = useMemo(() => {
-    if (!playback.originator) return null
+  // Update Media Session provider based on media type
+  // Note: This uses useEffect + setState (not useMemo) because the action callbacks
+  // access refs (via handleSeek, handleRewind10, etc.), which is only safe in effects.
+  useEffect(() => {
+    if (!playback.originator || isImage) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Deriving state from callbacks that access refs
+      setMediaSessionProvider(null)
+      return
+    }
 
-    return new VideoMediaSessionProvider(playback, {
+    const actions = {
       onPause: togglePlayPause,
       onPlay: togglePlayPause,
       onSeek: handleSeek,
       onSeekBackward: handleRewind10,
       onSeekForward: handleFastForward10,
       onStop: stopPlayback,
-    })
+    }
+
+    if (isAudio) {
+      setMediaSessionProvider(new AudioMediaSessionProvider(playback, actions))
+    } else {
+      setMediaSessionProvider(new VideoMediaSessionProvider(playback, actions))
+    }
   }, [
-    playback,
-    togglePlayPause,
-    handleSeek,
-    handleRewind10,
     handleFastForward10,
+    handleRewind10,
+    handleSeek,
+    isAudio,
+    isImage,
+    playback,
     stopPlayback,
+    togglePlayPause,
   ])
 
   // Integrate Media Session API
   useMediaSession(mediaSessionProvider, playback, !!playback.originator)
 
-  // Configure player-specific keyboard shortcuts (only when playback is active)
-  const playerShortcuts = useMemo(
-    () =>
+  // Update stats provider based on media type
+  // Note: This uses useEffect + setState (not useMemo) because the provider callbacks
+  // access refs (audioPlayerRef, playerRef), which is only safe in effects.
+  useEffect(() => {
+    if (!playback.originator) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Deriving state from callbacks that access refs
+      setStatsProvider(undefined)
+      return
+    }
+
+    if (isAudio) {
+      setStatsProvider(
+        new AudioPlayerStatsProvider({
+          getMediaElement: () =>
+            audioPlayerRef.current?.getMediaElement() ?? null,
+          getPlayer: () => audioPlayerRef.current?.getPlayer() ?? null,
+          playbackState: playback,
+        }),
+      )
+    } else if (isImage) {
+      setStatsProvider(
+        new ImagePlayerStatsProvider({
+          playbackState: playback,
+        }),
+      )
+    } else {
+      setStatsProvider(
+        new VideoPlayerStatsProvider({
+          getMediaElement: () => playerRef.current?.getMediaElement() ?? null,
+          getPlayer: () => playerRef.current?.getPlayer() ?? null,
+          playbackState: playback,
+        }),
+      )
+    }
+  }, [isAudio, isImage, playback])
+
+  // Toggle player stats visibility
+  const toggleStats = useCallback(() => {
+    setStatsEnabled((prev) => !prev)
+  }, [])
+
+  // Update player-specific keyboard shortcuts
+  // Note: This uses useEffect + setState (not useMemo) because the shortcut callbacks
+  // access refs (via handleFastForward10, etc.), which is only safe in effects.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Deriving state from callbacks that access refs
+    setPlayerShortcuts(
       createPlayerShortcuts(
         {
           forward10Seconds: handleFastForward10,
@@ -335,23 +428,25 @@ export function PlayerContainer(): ReactNode {
           rewind10Seconds: handleRewind10,
           skipBack10Minutes: handleSkipBack10Minutes,
           togglePlayPause,
+          toggleStats,
         },
         {
           isPlayerMaximized: () => playback.maximized,
         },
       ),
-    [
-      handleFastForward10,
-      handleJumpForward10Minutes,
-      handleRewind10,
-      handleSkipBack10Minutes,
-      playback.maximized,
-      togglePlayPause,
-    ],
-  )
+    )
+  }, [
+    handleFastForward10,
+    handleJumpForward10Minutes,
+    handleRewind10,
+    handleSkipBack10Minutes,
+    playback.maximized,
+    togglePlayPause,
+    toggleStats,
+  ])
 
-  // Register player shortcuts (only active when playback is active)
-  useKeyboardShortcuts(playerShortcuts, !!playback.originator)
+  // Register player shortcuts (only active when playback is active and not for images)
+  useKeyboardShortcuts(playerShortcuts, !!playback.originator && !isImage)
 
   const handleProgressMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!progressBarRef.current || safeDuration === 0) return
@@ -365,372 +460,542 @@ export function PlayerContainer(): ReactNode {
     setTooltipPosition({ percentage, time: targetTime })
   }
 
-  // Calculate clamped tooltip position to prevent it from going off-screen
-  const getClampedTooltipPosition = () => {
-    if (!progressBarRef.current || !tooltipRef.current) {
-      return {
-        left: `${String(tooltipPosition.percentage * 100)}%`,
-        transform: 'translateX(-50%)',
-      }
+  // Handlers for tooltip visibility
+  const handleTooltipVisibilityChange = useCallback((visible: boolean) => {
+    setTooltipVisible(visible)
+    if (!visible) {
+      setThumbnail(null)
     }
+  }, [])
 
-    const progressRect = progressBarRef.current.getBoundingClientRect()
-    const tooltipRect = tooltipRef.current.getBoundingClientRect()
+  // Handler for volume change
+  const handleVolumeChange = useCallback(
+    (values: number[]) => {
+      const newVolume = values[0] ?? 0
+      setVolume(newVolume)
+    },
+    [setVolume],
+  )
 
-    // Calculate the desired center position of the tooltip
-    const desiredLeft =
-      progressRect.left + tooltipPosition.percentage * progressRect.width
+  // Image viewer zoom handlers
+  const handleZoomIn = useCallback(() => {
+    imageViewerRef.current?.zoomIn()
+  }, [])
 
-    // Calculate tooltip half-width
-    const tooltipHalfWidth = tooltipRect.width / 2
+  const handleZoomOut = useCallback(() => {
+    imageViewerRef.current?.zoomOut()
+  }, [])
 
-    // Padding from screen edges
-    const edgePadding = 8
-
-    // Calculate clamped position
-    const minLeft = edgePadding + tooltipHalfWidth
-    const maxLeft = globalThis.innerWidth - edgePadding - tooltipHalfWidth
-    const clampedLeft = Math.max(minLeft, Math.min(maxLeft, desiredLeft))
-
-    // Calculate the offset needed
-    const offset = clampedLeft - progressRect.left
-    const offsetPercentage = (offset / progressRect.width) * 100
-
-    // Calculate max width to prevent overflow
-    const leftEdge = clampedLeft - tooltipHalfWidth
-    const rightEdge = clampedLeft + tooltipHalfWidth
-
-    let maxWidth: string | undefined
-    if (leftEdge < edgePadding) {
-      // Constrain from left edge
-      maxWidth = `${String((clampedLeft - edgePadding) * 2)}px`
-    } else if (rightEdge > globalThis.innerWidth - edgePadding) {
-      // Constrain from right edge
-      maxWidth = `${String((globalThis.innerWidth - edgePadding - clampedLeft) * 2)}px`
-    }
-
-    return {
-      left: `${String(offsetPercentage)}%`,
-      maxWidth,
-      transform: 'translateX(-50%)',
-    }
-  }
-
-  // Convert linear slider value to exponential volume (x³ curve)
-  const linearToVolume = (linear: number): number => {
-    return Math.pow(linear, 3)
-  }
-
-  // Convert exponential volume to linear slider value
-  const volumeToLinear = (volume: number): number => {
-    return Math.pow(volume, 1 / 3)
-  }
-
-  const handleVolumeChange = (values: number[]) => {
-    const linear = values[0] ?? 0
-    const volume = linearToVolume(linear)
-    setVolume(volume)
-  }
-
-  // Get appropriate volume icon based on volume level and mute state
-  const getVolumeIcon = () => {
-    if (playback.isMuted || playback.volume === 0) {
-      return <IconVolumeOff className="h-5 w-5" />
-    } else if (playback.volume < 0.3) {
-      return <IconVolumeMute className="h-5 w-5" />
-    } else if (playback.volume < 0.7) {
-      return <IconVolumeDown className="h-5 w-5" />
-    } else {
-      return <IconVolumeUp className="h-5 w-5" />
-    }
-  }
-
-  const currentLinearVolume = volumeToLinear(playback.volume)
+  const handleResetZoom = useCallback(() => {
+    imageViewerRef.current?.resetTransform()
+  }, [])
 
   if (!playback.originator) {
     return null
   }
 
-  return (
-    <div
-      className={cn('contents', playback.maximized && isIdle && 'cursor-none')}
-      ref={containerRef}
-    >
-      {playback.maximized && (
+  // Render image viewer with its own control bar
+  if (isImage) {
+    return (
+      <>
+        {/* Player Stats Overlay */}
+        <PlayerStats
+          enabled={statsEnabled}
+          onDisable={() => {
+            setStatsEnabled(false)
+          }}
+          provider={statsProvider}
+        />
         <div
           className={cn(
-            `
-              fixed top-0 z-50 flex h-16 w-full flex-row items-center
-              justify-between border-b border-border bg-background/70
-              transition-opacity duration-300
-            `,
-            showControls ? '' : 'pointer-events-none opacity-0',
+            'contents',
+            playback.maximized && isIdle && 'cursor-none',
           )}
+          ref={containerRef}
         >
-          <Button
-            className="ml-4"
-            onClick={toggleMaximize}
-            size="icon"
-            variant="ghost"
-          >
-            <IconChevronDown className="h-6 w-6" />
-          </Button>
-          <Button
-            className="mr-4"
-            onClick={toggleFullscreen}
-            size="icon"
-            variant="ghost"
-          >
-            <IconFullscreen className="h-6 w-6" />
-          </Button>
-        </div>
-      )}
-      <button
-        aria-label={playback.isPlaying ? 'Pause video' : 'Play video'}
-        className={cn(
-          playback.maximized
-            ? 'flex h-full w-full items-center justify-center'
-            : 'absolute bottom-2 left-2 z-1 aspect-video h-20',
-        )}
-        disabled={!playback.maximized}
-        onClick={playback.maximized ? togglePlayPause : undefined}
-        type="button"
-      >
-        <ShakaPlayer
-          className={cn(
-            'h-full w-full',
-            !(playback.maximized && isIdle) && 'cursor-pointer',
-          )}
-          ref={playerRef}
-        />
-      </button>
-      <div
-        className={cn(
-          playback.maximized
-            ? `
-              fixed bottom-0 z-50 w-full bg-background/70 transition-opacity
-              duration-300
-            `
-            : `relative bg-background`,
-          `flex h-[100px] flex-col justify-center border-t border-border`,
-          playback.maximized &&
-            !showControls &&
-            'pointer-events-none opacity-0',
-        )}
-      >
-        {/* Progress Bar */}
-        <div className="relative -mt-2 w-full py-2">
-          <input
-            aria-label="Seek"
-            className={cn(
-              'absolute inset-0 z-10 h-6 w-full cursor-pointer opacity-0',
-            )}
-            max={safeDuration}
-            min={0}
-            onBlur={() => {
-              setTooltipVisible(false)
-              setThumbnail(null)
-            }}
-            onChange={handleProgressChange}
-            onFocus={() => {
-              setTooltipVisible(true)
-            }}
-            onMouseEnter={() => {
-              setTooltipVisible(true)
-            }}
-            onMouseLeave={() => {
-              setTooltipVisible(false)
-              setThumbnail(null)
-            }}
-            onMouseMove={handleProgressMouseMove}
-            ref={progressBarRef}
-            step={1}
-            type="range"
-            value={safeCurrentTime}
-          />
-          <div className="relative h-1 bg-stone-900">
-            {/* Buffer indicator */}
-            <div
-              className="absolute h-full bg-primary/20 transition-all"
-              style={{
-                width: `${String(safeDuration > 0 ? (safeBufferedTime / safeDuration) * 100 : 0)}%`,
-              }}
-            />
-            {/* Current progress */}
-            <div
-              className="absolute h-full bg-primary transition-all"
-              style={{
-                width: `${String(safeDuration > 0 ? (safeCurrentTime / safeDuration) * 100 : 0)}%`,
-              }}
-            />
-          </div>
-        </div>
-        {/* Custom tooltip */}
-        {tooltipVisible && (
-          <div
-            className="pointer-events-none absolute bottom-full z-50 mb-2"
-            ref={tooltipRef}
-            style={{
-              ...getClampedTooltipPosition(),
-              width: 'max-content',
-            }}
-          >
-            {/* Thumbnail preview */}
-            {thumbnail && (
-              <div
-                className={`
-                  mb-2 aspect-video max-h-40 overflow-hidden border
-                  border-primary bg-background shadow-md
-                `}
-              >
-                <img
-                  alt=""
-                  aria-hidden="true"
-                  className={`h-full w-full object-contain`}
-                  src={thumbnail.imageUrl}
-                />
-              </div>
-            )}
-            {/* Time tooltip */}
+          {playback.maximized && (
             <div
               className={cn(
-                thumbnail && 'absolute bottom-4 left-1/2 -translate-x-1/2',
                 `
-                  rounded-md bg-primary px-3 py-1.5 text-xs
-                  text-primary-foreground shadow-md
+                  fixed top-0 z-50 flex h-16 w-full flex-row items-center
+                  justify-between border-b border-border bg-background/70
+                  transition-opacity duration-300
                 `,
+                showControls ? '' : 'pointer-events-none opacity-0',
               )}
             >
-              {formatDuration(tooltipPosition.time)}
+              <Button
+                className="ml-4"
+                onClick={toggleMaximize}
+                size="icon"
+                variant="ghost"
+              >
+                <IconChevronDown className="h-6 w-6" />
+              </Button>
+              <Button
+                className="mr-4"
+                onClick={toggleFullscreen}
+                size="icon"
+                variant="ghost"
+              >
+                <IconFullscreen className="h-6 w-6" />
+              </Button>
             </div>
+          )}
+          <div
+            className={cn(
+              playback.maximized
+                ? 'flex h-full w-full items-center justify-center'
+                : 'absolute bottom-2 left-2 z-1 aspect-square h-20',
+            )}
+          >
+            <ImageViewer
+              className="h-full w-full"
+              playback={playback}
+              ref={imageViewerRef}
+            />
           </div>
-        )}
-
-        <div className="flex h-full flex-row items-center justify-between">
-          <div className="flex grow items-center">
-            {!playback.maximized && (
-              <div className="group relative mb-2.5 ml-2 h-20">
-                <div className="aspect-video h-full" />
+          <div
+            className={cn(
+              playback.maximized
+                ? `
+                  fixed bottom-0 z-50 w-full bg-background/70 transition-opacity
+                  duration-300
+                `
+                : `relative bg-background`,
+              `flex h-25 flex-col justify-center border-t border-border`,
+              playback.maximized &&
+                !showControls &&
+                'pointer-events-none opacity-0',
+            )}
+          >
+            <div className="grid h-full grid-cols-[1fr_auto_1fr] items-center">
+              <div className="flex items-center">
+                {!playback.maximized && (
+                  <div className="group relative mb-2.5 ml-2 h-20">
+                    <div className="aspect-square h-full" />
+                    <Button
+                      aria-label="Maximize player"
+                      className={`
+                        absolute top-0 z-2 h-full w-full rounded-none opacity-0
+                        transition-opacity duration-200 ease-in-out
+                        group-hover:opacity-100
+                      `}
+                      onClick={toggleMaximize}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <IconChevronUp />
+                    </Button>
+                  </div>
+                )}
+                <MediaInfo
+                  playlistIndex={playlistIndex}
+                  playlistTotalCount={playlistTotalCount}
+                  title={playback.originator.title}
+                />
+              </div>
+              <ImageControls
+                hasNext={hasNext}
+                hasPrevious={hasPrevious}
+                isMaximized={playback.maximized}
+                isRepeat={isRepeat}
+                isShuffle={isShuffle}
+                onNext={() => {
+                  void navigateNext()
+                }}
+                onPrevious={() => {
+                  void navigatePrevious()
+                }}
+                onResetZoom={handleResetZoom}
+                onToggleRepeat={() => {
+                  void setRepeat(!isRepeat)
+                }}
+                onToggleShuffle={() => {
+                  void setShuffle(!isShuffle)
+                }}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+              />
+              <div className="mb-2.5 flex items-center justify-end gap-2 pr-5">
                 <Button
-                  aria-label="Maximize player"
-                  className={`
-                    absolute top-0 z-2 h-full w-full rounded-none opacity-0
-                    transition-opacity duration-200 ease-in-out
-                    group-hover:opacity-100
-                  `}
-                  onClick={toggleMaximize}
+                  aria-label="Toggle playlist"
+                  onClick={() => {
+                    setIsPlaylistOpen(!isPlaylistOpen)
+                  }}
                   size="icon"
                   variant="ghost"
                 >
-                  <IconChevronUp />
+                  <IconQueueMusic className="h-5 w-5" />
                 </Button>
-              </div>
-            )}
-            {/* Media Info */}
-            <div className="mb-2.5 ml-3 text-nowrap">
-              <div className="truncate text-sm font-medium">
-                {playback.originator.title}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <span>{formatDuration(safeCurrentTime)}</span>
-                <span className="mx-1">/</span>
-                <span>{formatDuration(safeDuration)}</span>
+                <Button
+                  aria-label="Close"
+                  onClick={() => {
+                    void stopPlayback()
+                  }}
+                  size="icon"
+                  variant="ghost"
+                >
+                  <IconClose className="h-5 w-5" />
+                </Button>
               </div>
             </div>
           </div>
-          {/* Player Controls */}
-          <div className="mx-5 flex shrink items-center justify-center pr-9">
-            <Button
-              aria-label="Previous"
-              // onClick={handlePrevious}
-              size="icon"
-              variant="ghost"
+        </div>
+        {/* Playlist Drawer */}
+        <PlaylistDrawer
+          onOpenChange={setIsPlaylistOpen}
+          open={isPlaylistOpen}
+        />
+      </>
+    )
+  }
+
+  // Render audio player
+  if (isAudio) {
+    return (
+      <>
+        {/* Player Stats Overlay */}
+        <PlayerStats
+          enabled={statsEnabled}
+          onDisable={() => {
+            setStatsEnabled(false)
+          }}
+          provider={statsProvider}
+        />
+        <div
+          className={cn(
+            'contents',
+            playback.maximized && isIdle && 'cursor-none',
+          )}
+          ref={containerRef}
+        >
+          {playback.maximized && (
+            <div
+              className={cn(
+                `
+                  fixed top-0 z-50 flex h-16 w-full flex-row items-center
+                  justify-between border-b border-border bg-background/70
+                  transition-opacity duration-300
+                `,
+                showControls ? '' : 'pointer-events-none opacity-0',
+              )}
             >
-              <IconPrevious />
-            </Button>
-            <Button
-              aria-label="Rewind 10 seconds"
-              onClick={handleRewind10}
-              size="icon"
-              variant="ghost"
-            >
-              <IconReplay10 />
-            </Button>
-            <Button
-              aria-label="Play/Pause"
-              onClick={togglePlayPause}
-              size="icon"
-              variant="ghost"
-            >
-              {playback.isPlaying ? <IconPause /> : <IconPlay />}
-            </Button>
-            <Button
-              aria-label="Fast Forward 10 seconds"
-              onClick={handleFastForward10}
-              size="icon"
-              variant="ghost"
-            >
-              <IconForward10 />
-            </Button>
-            <Button
-              aria-label="Next"
-              // onClick={handleNext}
-              size="icon"
-              variant="ghost"
-            >
-              <IconNext />
-            </Button>
-            <Button
-              aria-label="Stop"
-              onClick={stopPlayback}
-              size="icon"
-              variant="ghost"
-            >
-              <IconStop />
-            </Button>
+              <Button
+                className="ml-4"
+                onClick={toggleMaximize}
+                size="icon"
+                variant="ghost"
+              >
+                <IconChevronDown className="h-6 w-6" />
+              </Button>
+              <Button
+                className="mr-4"
+                onClick={toggleFullscreen}
+                size="icon"
+                variant="ghost"
+              >
+                <IconFullscreen className="h-6 w-6" />
+              </Button>
+            </div>
+          )}
+          <div
+            className={cn(
+              playback.maximized
+                ? 'flex h-full w-full items-center justify-center'
+                : 'contents',
+            )}
+          >
+            <AudioPlayer playback={playback} ref={audioPlayerRef} />
           </div>
-          <div className="mb-2.5 flex grow items-center justify-end pr-5">
-            {/* Volume Controls */}
-            <Button
-              aria-label="Mute/Unmute"
-              onClick={toggleMute}
-              size="icon"
-              variant="ghost"
-            >
-              {getVolumeIcon()}
-            </Button>
-            <Slider
-              aria-label="Volume"
-              className="data-[orientation=vertical]:min-h-20"
-              max={1}
-              min={0}
-              onValueChange={handleVolumeChange}
-              orientation="vertical"
-              step={0.01}
-              value={[currentLinearVolume]}
+          <div
+            className={cn(
+              playback.maximized
+                ? `
+                  fixed bottom-0 z-50 w-full bg-background/70 transition-opacity
+                  duration-300
+                `
+                : `relative bg-background`,
+              `flex h-25 flex-col justify-center border-t border-border`,
+              playback.maximized &&
+                !showControls &&
+                'pointer-events-none opacity-0',
+            )}
+          >
+            {/* Progress Bar (no thumbnails for audio) */}
+            <ProgressBar
+              bufferedTime={safeBufferedTime}
+              currentTime={safeCurrentTime}
+              duration={safeDuration}
+              onProgressChange={handleProgressChange}
+              onProgressMouseMove={handleProgressMouseMove}
+              onTooltipVisibilityChange={handleTooltipVisibilityChange}
+              progressBarRef={progressBarRef}
+              thumbnail={null}
+              tooltipPosition={tooltipPosition}
+              tooltipRef={tooltipRef}
+              tooltipVisible={tooltipVisible}
             />
+            <div className="grid h-full grid-cols-[1fr_auto_1fr] items-center">
+              <div className="flex items-center">
+                {!playback.maximized && (
+                  <div className="group relative mb-2.5 ml-2 h-20">
+                    <div className="aspect-square h-full" />
+                    <Button
+                      aria-label="Maximize player"
+                      className={`
+                        absolute top-0 z-2 h-full w-full rounded-none opacity-0
+                        transition-opacity duration-200 ease-in-out
+                        group-hover:opacity-100
+                      `}
+                      onClick={toggleMaximize}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <IconChevronUp />
+                    </Button>
+                  </div>
+                )}
+                <MediaInfo
+                  album={playback.originator.parentTitle}
+                  artist={playback.originator.originalTitle}
+                  currentTime={safeCurrentTime}
+                  duration={safeDuration}
+                  title={playback.originator.title}
+                />
+              </div>
+              <PlaybackControls
+                isPlaying={playback.isPlaying}
+                onFastForward10={handleFastForward10}
+                onNext={
+                  hasNext
+                    ? () => {
+                        void navigateNext()
+                      }
+                    : undefined
+                }
+                onPrevious={
+                  hasPrevious
+                    ? () => {
+                        void navigatePrevious()
+                      }
+                    : undefined
+                }
+                onRewind10={handleRewind10}
+                onStop={() => {
+                  void stopPlayback()
+                }}
+                onTogglePlayPause={togglePlayPause}
+              />
+              <div className="mb-2.5 flex items-center justify-end gap-2 pr-5">
+                <Button
+                  aria-label="Toggle playlist"
+                  onClick={() => {
+                    setIsPlaylistOpen(!isPlaylistOpen)
+                  }}
+                  size="icon"
+                  variant="ghost"
+                >
+                  <IconQueueMusic className="h-5 w-5" />
+                </Button>
+                <PlayerMenu
+                  onToggleStats={toggleStats}
+                  statsEnabled={statsEnabled}
+                />
+                <VolumeControls
+                  isMuted={playback.isMuted}
+                  onToggleMute={toggleMute}
+                  onVolumeChange={handleVolumeChange}
+                  volume={playback.volume}
+                />
+              </div>
+            </div>
           </div>
         </div>
+        {/* Playlist Drawer */}
+        <PlaylistDrawer
+          onOpenChange={setIsPlaylistOpen}
+          open={isPlaylistOpen}
+        />
+      </>
+    )
+  }
+
+  // Render video player (default)
+  return (
+    <>
+      {/* Player Stats Overlay */}
+      <PlayerStats
+        enabled={statsEnabled}
+        onDisable={() => {
+          setStatsEnabled(false)
+        }}
+        provider={statsProvider}
+      />
+      <div
+        className={cn(
+          'contents',
+          playback.maximized && isIdle && 'cursor-none',
+        )}
+        ref={containerRef}
+      >
+        {playback.maximized && (
+          <div
+            className={cn(
+              `
+                fixed top-0 z-50 flex h-16 w-full flex-row items-center
+                justify-between border-b border-border bg-background/70
+                transition-opacity duration-300
+              `,
+              showControls ? '' : 'pointer-events-none opacity-0',
+            )}
+          >
+            <Button
+              className="ml-4"
+              onClick={toggleMaximize}
+              size="icon"
+              variant="ghost"
+            >
+              <IconChevronDown className="h-6 w-6" />
+            </Button>
+            <Button
+              className="mr-4"
+              onClick={toggleFullscreen}
+              size="icon"
+              variant="ghost"
+            >
+              <IconFullscreen className="h-6 w-6" />
+            </Button>
+          </div>
+        )}
+        <button
+          aria-label={playback.isPlaying ? 'Pause video' : 'Play video'}
+          className={cn(
+            playback.maximized
+              ? 'flex h-full w-full items-center justify-center'
+              : 'absolute bottom-2 left-2 z-1 aspect-video h-20',
+          )}
+          disabled={!playback.maximized}
+          onClick={playback.maximized ? togglePlayPause : undefined}
+          type="button"
+        >
+          <ShakaPlayer
+            className={cn(
+              'h-full w-full',
+              !(playback.maximized && isIdle) && 'cursor-pointer',
+            )}
+            ref={playerRef}
+          />
+        </button>
+        <div
+          className={cn(
+            playback.maximized
+              ? `
+                fixed bottom-0 z-50 w-full bg-background/70 transition-opacity
+                duration-300
+              `
+              : `relative bg-background`,
+            `flex h-25 flex-col justify-center border-t border-border`,
+            playback.maximized &&
+              !showControls &&
+              'pointer-events-none opacity-0',
+          )}
+        >
+          {/* Progress Bar with thumbnails */}
+          <ProgressBar
+            bufferedTime={safeBufferedTime}
+            currentTime={safeCurrentTime}
+            duration={safeDuration}
+            onProgressChange={handleProgressChange}
+            onProgressMouseMove={handleProgressMouseMove}
+            onTooltipVisibilityChange={handleTooltipVisibilityChange}
+            progressBarRef={progressBarRef}
+            thumbnail={thumbnail}
+            tooltipPosition={tooltipPosition}
+            tooltipRef={tooltipRef}
+            tooltipVisible={tooltipVisible}
+          />
+          <div className="grid h-full grid-cols-[1fr_auto_1fr] items-center">
+            <div className="flex items-center">
+              {!playback.maximized && (
+                <div className="group relative mb-2.5 ml-2 h-20">
+                  <div className="aspect-video h-full" />
+                  <Button
+                    aria-label="Maximize player"
+                    className={`
+                      absolute top-0 z-2 h-full w-full rounded-none opacity-0
+                      transition-opacity duration-200 ease-in-out
+                      group-hover:opacity-100
+                    `}
+                    onClick={toggleMaximize}
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <IconChevronUp />
+                  </Button>
+                </div>
+              )}
+              <MediaInfo
+                currentTime={safeCurrentTime}
+                duration={safeDuration}
+                title={playback.originator.title}
+              />
+            </div>
+            <PlaybackControls
+              isPlaying={playback.isPlaying}
+              onFastForward10={handleFastForward10}
+              onNext={
+                hasNext
+                  ? () => {
+                      void navigateNext()
+                    }
+                  : undefined
+              }
+              onPrevious={
+                hasPrevious
+                  ? () => {
+                      void navigatePrevious()
+                    }
+                  : undefined
+              }
+              onRewind10={handleRewind10}
+              onStop={() => {
+                void stopPlayback()
+              }}
+              onTogglePlayPause={togglePlayPause}
+            />
+            <div className="mb-2.5 flex items-center justify-end gap-2 pr-5">
+              <Button
+                aria-label="Toggle playlist"
+                onClick={() => {
+                  setIsPlaylistOpen(!isPlaylistOpen)
+                }}
+                size="icon"
+                variant="ghost"
+              >
+                <IconQueueMusic className="h-5 w-5" />
+              </Button>
+              <PlayerMenu
+                onToggleStats={toggleStats}
+                statsEnabled={statsEnabled}
+              />
+              <VolumeControls
+                isMuted={playback.isMuted}
+                onToggleMute={toggleMute}
+                onVolumeChange={handleVolumeChange}
+                volume={playback.volume}
+              />
+            </div>
+          </div>
+        </div>
+        {/* Playlist Drawer */}
+        <PlaylistDrawer
+          onOpenChange={setIsPlaylistOpen}
+          open={isPlaylistOpen}
+        />
       </div>
-    </div>
+    </>
   )
-}
-
-/**
- * Formats milliseconds to a human-readable duration string (H:MM:SS or M:SS)
- */
-function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) {
-    return '--:--'
-  }
-
-  const duration = Duration.fromMillis(ms)
-  const hours = Math.floor(duration.as('hours'))
-
-  if (hours > 0) {
-    return duration.toFormat('h:mm:ss')
-  }
-  return duration.toFormat('m:ss')
 }
 
 function usePlaybackHeartbeat(
@@ -738,55 +1003,74 @@ function usePlaybackHeartbeat(
   apolloClient: ReturnType<typeof useApolloClient>,
   updatePlaybackState: (updates: Partial<PlaybackState>) => void,
 ): void {
-  const throttledPosition = useThrottle(playback.currentTime, 5000)
+  const playbackRef = useRef(playback)
+  const intervalRef = useRef<null | ReturnType<typeof setInterval>>(null)
 
   useEffect(() => {
-    if (!playback.playbackSessionId) return
+    playbackRef.current = playback
+  }, [playback])
 
-    const playheadMs = Math.round(
-      Number.isFinite(throttledPosition)
-        ? throttledPosition
-        : playback.currentTime,
-    )
-
-    const input = {
-      capability: playback.capabilityVersionMismatch
-        ? buildPlaybackCapabilityInput(playback.capabilityProfileVersion)
-        : undefined,
-      capabilityProfileVersion: playback.capabilityProfileVersion ?? undefined,
-      playbackSessionId: playback.playbackSessionId,
-      playheadMs,
-      state: playback.isPlaying ? 'playing' : 'paused',
+  useEffect(() => {
+    if (!playback.playbackSessionId) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+      return
     }
 
-    void apolloClient
-      .mutate<PlaybackHeartbeatResult>({
-        mutation: PlaybackHeartbeatMutation,
-        variables: { input },
-      })
-      .then((response) => {
-        const payload = response.data?.playbackHeartbeat
-        if (!payload) return
+    const sendHeartbeat = () => {
+      const state = playbackRef.current
+      if (!state.playbackSessionId) return
 
-        updatePlaybackState({
-          capabilityProfileVersion: payload.capabilityProfileVersion,
-          capabilityVersionMismatch: payload.capabilityVersionMismatch,
+      const streamOffset = state.streamOffset ?? 0
+      const currentTime = state.currentTime
+      const playheadMs = Math.round(currentTime + streamOffset)
+
+      const input = {
+        capability: state.capabilityVersionMismatch
+          ? buildPlaybackCapabilityInput(state.capabilityProfileVersion)
+          : undefined,
+        capabilityProfileVersion: state.capabilityProfileVersion ?? undefined,
+        playbackSessionId: state.playbackSessionId,
+        playheadMs,
+        state: state.isPlaying ? 'playing' : 'paused',
+      }
+
+      void apolloClient
+        .mutate<PlaybackHeartbeatResult>({
+          mutation: PlaybackHeartbeatDocument,
+          variables: { input },
         })
-      })
-      .catch((error: unknown) => {
-        handleErrorStandalone(error, {
-          context: 'PlayerContainer.heartbeat',
-          notify: false,
+        .then((response) => {
+          const payload = response.data?.playbackHeartbeat
+          if (!payload) return
+
+          updatePlaybackState({
+            capabilityProfileVersion: payload.capabilityProfileVersion,
+            capabilityVersionMismatch: payload.capabilityVersionMismatch,
+          })
         })
-      })
-  }, [
-    apolloClient,
-    playback.capabilityProfileVersion,
-    playback.capabilityVersionMismatch,
-    playback.currentTime,
-    playback.isPlaying,
-    playback.playbackSessionId,
-    throttledPosition,
-    updatePlaybackState,
-  ])
+        .catch((error: unknown) => {
+          handleErrorStandalone(error, {
+            context: 'PlayerContainer.heartbeat',
+            notify: false,
+          })
+        })
+    }
+
+    sendHeartbeat()
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+    }
+    intervalRef.current = setInterval(sendHeartbeat, 15000)
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [apolloClient, playback.playbackSessionId, updatePlaybackState])
 }

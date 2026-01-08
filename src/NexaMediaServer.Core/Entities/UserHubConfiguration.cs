@@ -13,12 +13,12 @@ public class UserHubConfiguration : AuditableEntity
     /// <summary>
     /// Gets or sets the identifier of the user this configuration belongs to.
     /// </summary>
-    public string UserId { get; set; } = null!;
+    public string? UserId { get; set; }
 
     /// <summary>
     /// Gets or sets the user this configuration belongs to.
     /// </summary>
-    public User User { get; set; } = null!;
+    public User? User { get; set; }
 
     /// <summary>
     /// Gets or sets the hub context this configuration applies to.
@@ -35,6 +35,12 @@ public class UserHubConfiguration : AuditableEntity
     /// Gets or sets the library section this configuration applies to.
     /// </summary>
     public LibrarySection? LibrarySection { get; set; }
+
+    /// <summary>
+    /// Gets or sets the metadata type this configuration applies to (for item detail hubs).
+    /// Null when the configuration is not scoped to a metadata type.
+    /// </summary>
+    public MetadataType? MetadataType { get; set; }
 
     /// <summary>
     /// Gets or sets the list of enabled hub types in display order.

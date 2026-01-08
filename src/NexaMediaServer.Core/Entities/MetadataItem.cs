@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2025 Nexa Contributors <contact@nexa.ms>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+using System.Text.Json;
+
 using NexaMediaServer.Core.Enums;
 
 namespace NexaMediaServer.Core.Entities;
@@ -208,4 +210,43 @@ public class MetadataItem : SoftDeletableEntity
     /// identifier per metadata item.
     /// </remarks>
     public ICollection<ExternalIdentifier> ExternalIdentifiers { get; set; } = [];
+
+    // ----------------------------- Field Locking -----------------------------
+
+    /// <summary>
+    /// Gets or sets the collection of field names that are locked from automatic updates.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When a field name is present in this collection, metadata agents and automated refresh
+    /// processes will skip updating that field. This allows users to manually set values that
+    /// should not be overwritten by metadata providers.
+    /// </para>
+    /// <para>
+    /// Use constants from <c>MetadataFieldNames</c> for built-in fields. Custom/dynamic field
+    /// names are also supported for user-defined fields.
+    /// </para>
+    /// <para>
+    /// Locks can be selectively overridden by passing the field names in the <c>overrideFields</c>
+    /// parameter when calling refresh methods.
+    /// </para>
+    /// </remarks>
+    public ICollection<string> LockedFields { get; set; } = [];
+
+    // ----------------------------- Extra Fields -----------------------------
+
+    /// <summary>
+    /// Gets or sets additional custom fields as a JSON dictionary.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This property stores admin-defined custom fields with typed values.
+    /// Keys correspond to <see cref="Entities.CustomFieldDefinition.Key"/> values.
+    /// Values can be strings, numbers, booleans, or arrays serialized as <see cref="JsonElement"/>.
+    /// </para>
+    /// <para>
+    /// Stored as a TEXT column with JSON serialization in the database.
+    /// </para>
+    /// </remarks>
+    public Dictionary<string, JsonElement> ExtraFields { get; set; } = [];
 }

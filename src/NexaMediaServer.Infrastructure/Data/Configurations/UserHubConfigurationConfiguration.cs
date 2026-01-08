@@ -3,6 +3,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
 
@@ -18,8 +19,9 @@ public class UserHubConfigurationConfiguration : IEntityTypeConfiguration<UserHu
     {
         builder.HasKey(e => e.Id);
 
-        builder.Property(e => e.UserId).IsRequired().HasMaxLength(450);
+        builder.Property(e => e.UserId).HasMaxLength(450);
         builder.Property(e => e.Context).IsRequired();
+        builder.Property(e => e.MetadataType).HasConversion<int?>();
 
         // Store hub type lists as JSON
         builder
@@ -71,6 +73,7 @@ public class UserHubConfigurationConfiguration : IEntityTypeConfiguration<UserHu
                 e.UserId,
                 e.Context,
                 e.LibrarySectionId,
+                e.MetadataType,
             })
             .IsUnique();
 

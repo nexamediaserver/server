@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Collections.Concurrent;
+
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Core.DTOs;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
+
 using IODirectory = System.IO.Directory;
 
 namespace NexaMediaServer.Infrastructure.Services.Watchers;
@@ -117,6 +120,9 @@ internal sealed partial class LocationWatcher : IDisposable
         try
         {
             this.PollDirectory(this.location.RootPath, 0);
+
+            // Periodically prune non-existent directories to prevent memory leaks
+            this.PruneNonExistentDirectories();
         }
         catch (Exception ex)
         {
@@ -145,6 +151,23 @@ internal sealed partial class LocationWatcher : IDisposable
         this.watchers.Clear();
     }
 
+    private void PruneNonExistentDirectories()
+    {
+        var directoriesToRemove = this.deepDirectoryTimestamps.Keys
+            .Where(path => !IODirectory.Exists(path))
+            .ToList();
+
+        foreach (var path in directoriesToRemove)
+        {
+            this.deepDirectoryTimestamps.TryRemove(path, out _);
+        }
+
+        if (directoriesToRemove.Count > 0)
+        {
+            LogPrunedDirectories(this.logger, directoriesToRemove.Count);
+        }
+    }
+
     private void CreateWatchers(string path, int depth)
     {
         if (depth >= this.maxWatchDepth)
@@ -154,31 +177,64 @@ internal sealed partial class LocationWatcher : IDisposable
             return;
         }
 
+        const int maxRetries = 5;
+        const int baseDelayMs = 10;
+
+        for (int attempt = 0; attempt < maxRetries; attempt++)
+        {
+            try
+            {
+                // Create watcher for this directory (non-recursive)
+                var watcher = new FileSystemWatcher(path)
+                {
+                    NotifyFilter =
+                        NotifyFilters.FileName
+                        | NotifyFilters.DirectoryName
+                        | NotifyFilters.LastWrite
+                        | NotifyFilters.Size
+                        | NotifyFilters.CreationTime,
+                    IncludeSubdirectories = false, // We manage depth ourselves
+                    EnableRaisingEvents = false, // Enable after setup
+                };
+
+                watcher.Created += this.OnCreated;
+                watcher.Deleted += this.OnDeleted;
+                watcher.Changed += this.OnChanged;
+                watcher.Renamed += this.OnRenamed;
+                watcher.Error += this.OnError;
+
+                this.watchers.Add(watcher);
+                watcher.EnableRaisingEvents = true;
+
+                // Success - break retry loop
+                break;
+            }
+            catch (IOException ex) when (ex.Message.Contains("EventStream") && attempt < maxRetries - 1)
+            {
+                // FSEvents limit hit - wait with exponential backoff before retry
+                var delayMs = baseDelayMs * (int)Math.Pow(2, attempt);
+                LogWatcherRetrying(this.logger, path, attempt + 1, maxRetries, delayMs);
+                Thread.Sleep(delayMs);
+            }
+            catch (Exception ex)
+            {
+                LogWatcherCreateError(this.logger, path, ex);
+
+                // Fall back to polling for this directory and its children
+                this.deepDirectoryTimestamps[path] = IODirectory.GetLastWriteTimeUtc(path);
+                return;
+            }
+        }
+
+        // Add small delay between watcher creation to avoid overwhelming FSEvents
+        if (OperatingSystem.IsMacOS() && this.watchers.Count % 10 == 0)
+        {
+            Thread.Sleep(5);
+        }
+
+        // Recursively create watchers for subdirectories up to depth
         try
         {
-            // Create watcher for this directory (non-recursive)
-            var watcher = new FileSystemWatcher(path)
-            {
-                NotifyFilter =
-                    NotifyFilters.FileName
-                    | NotifyFilters.DirectoryName
-                    | NotifyFilters.LastWrite
-                    | NotifyFilters.Size
-                    | NotifyFilters.CreationTime,
-                IncludeSubdirectories = false, // We manage depth ourselves
-                EnableRaisingEvents = false, // Enable after setup
-            };
-
-            watcher.Created += this.OnCreated;
-            watcher.Deleted += this.OnDeleted;
-            watcher.Changed += this.OnChanged;
-            watcher.Renamed += this.OnRenamed;
-            watcher.Error += this.OnError;
-
-            this.watchers.Add(watcher);
-            watcher.EnableRaisingEvents = true;
-
-            // Recursively create watchers for subdirectories up to depth
             foreach (var subDir in IODirectory.EnumerateDirectories(path))
             {
                 this.CreateWatchers(subDir, depth + 1);

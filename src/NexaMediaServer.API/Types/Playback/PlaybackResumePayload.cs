@@ -18,21 +18,37 @@ public sealed class PlaybackResumePayload
     /// <param name="playlistGeneratorId">Playlist generator identifier.</param>
     /// <param name="capabilityProfileVersion">Latest capability profile version.</param>
     /// <param name="capabilityVersionMismatch">Indicates whether the client's capability version is stale.</param>
+    /// <param name="streamPlanJson">Serialized stream plan used to resume playback.</param>
+    /// <param name="playbackUrl">URL to load for playback.</param>
+    /// <param name="trickplayUrl">Optional trickplay track URL.</param>
+    /// <param name="durationMs">Media duration in milliseconds.</param>
+    /// <param name="playheadMs">Last known playhead position.</param>
+    /// <param name="state">Last known playback state.</param>
     public PlaybackResumePayload(
         PlaybackSession session,
         Guid currentItemId,
         Guid playlistGeneratorId,
         int capabilityProfileVersion,
-        bool capabilityVersionMismatch
+        bool capabilityVersionMismatch,
+        string streamPlanJson,
+        string playbackUrl,
+        string? trickplayUrl,
+        long? durationMs,
+        long playheadMs,
+        string state
     )
     {
         this.PlaybackSessionId = session.PlaybackSessionId;
         this.CurrentItemId = currentItemId;
         this.PlaylistGeneratorId = playlistGeneratorId;
-        this.PlayheadMs = session.PlayheadMs;
-        this.State = session.State;
+        this.State = state;
         this.CapabilityProfileVersion = capabilityProfileVersion;
         this.CapabilityVersionMismatch = capabilityVersionMismatch;
+        this.StreamPlanJson = streamPlanJson;
+        this.PlaybackUrl = playbackUrl;
+        this.TrickplayUrl = trickplayUrl;
+        this.DurationMs = durationMs;
+        this.PlayheadMs = playheadMs;
     }
 
     /// <summary>
@@ -70,4 +86,24 @@ public sealed class PlaybackResumePayload
     /// Gets a value indicating whether the client should refresh capabilities.
     /// </summary>
     public bool CapabilityVersionMismatch { get; }
+
+    /// <summary>
+    /// Gets the serialized stream plan for the current playback.
+    /// </summary>
+    public string StreamPlanJson { get; }
+
+    /// <summary>
+    /// Gets the playback URL the client should load when resuming.
+    /// </summary>
+    public string PlaybackUrl { get; }
+
+    /// <summary>
+    /// Gets the trickplay track URL when available.
+    /// </summary>
+    public string? TrickplayUrl { get; }
+
+    /// <summary>
+    /// Gets the duration of the media item in milliseconds.
+    /// </summary>
+    public long? DurationMs { get; }
 }

@@ -22,4 +22,14 @@ public enum HubWidgetType
     /// A large hero carousel with backdrop images, logos, and rich metadata.
     /// </summary>
     Hero = 3,
+
+    /// <summary>
+    /// A vertical tracklist of audio tracks grouped by medium/disc.
+    /// </summary>
+    Tracklist = 4,
+
+    /// <summary>
+    /// A grid layout for displaying photos or pictures.
+    /// </summary>
+    Grid = 5,
 }

@@ -4,26 +4,35 @@
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
+
+
 using Hangfire;
+
 using HotChocolate.AspNetCore;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
+
 using NexaMediaServer.API.DataLoaders;
 using NexaMediaServer.API.Services;
 using NexaMediaServer.API.Services.Authentication;
 using NexaMediaServer.API.Telemetry;
 using NexaMediaServer.Core.Configuration;
+using NexaMediaServer.Core.Constants;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Services;
 using NexaMediaServer.Infrastructure.Data;
 using NexaMediaServer.Infrastructure.JobFilters;
 using NexaMediaServer.Infrastructure.Logging;
 using NexaMediaServer.Infrastructure.Services;
+
 using OpenTelemetry.Resources;
+
 using Scalar.AspNetCore;
+
 using Serilog;
 
 const string rollingLogFileName = "server-.log";
@@ -65,6 +74,7 @@ builder.Services.AddSerilog(
         var rollingLogPath = System.IO.Path.Combine(logDirectory, rollingLogFileName);
 
         configuration
+            .MinimumLevel.ControlledBy(LoggingConfiguration.LevelSwitch)
             .Enrich.FromLogContext()
             .Enrich.WithEnvironmentName()
             .Enrich.WithProcessId()
@@ -144,7 +154,13 @@ builder
     );
 
 builder.Services.AddScoped<SessionCookieAuthenticationEvents>();
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(
+        AuthorizationPolicies.Administrator,
+        policy => policy.RequireRole(Roles.Administrator)
+    );
+});
 
 builder.Services.AddOpenApi(options =>
 {
@@ -193,6 +209,10 @@ builder
         IRootMetadataItemsBySectionIdDataLoader,
         RootMetadataItemsBySectionIdDataLoader
     >()
+    .AddDataLoader<
+        IChildMetadataItemsByParentIdDataLoader,
+        ChildMetadataItemsByParentIdDataLoader
+    >()
     .AddDataLoader<IMetadataItemByIdDataLoader, MetadataItemByIdDataLoader>()
     .AddDataLoader<IMetadataItemSettingByUserDataLoader, MetadataItemSettingByUserDataLoader>()
     .AddGlobalObjectIdentification()
@@ -204,9 +224,14 @@ builder
     .AddInMemoryOperationDocumentStorage()
     .AddInMemorySubscriptions()
     .AddInstrumentation()
+    .ModifyRequestOptions(options =>
+    {
+        // Include exception details in responses during development
+        options.IncludeExceptionDetails = builder.Environment.IsDevelopment();
+    })
     .ModifyCostOptions(options =>
     {
-        options.MaxFieldCost = 1_500;
+        options.MaxFieldCost = 5_000;
     });
 
 // GraphQL notifier implementation for metadata item updates.
@@ -249,8 +274,27 @@ builder.Services.AddHangfireServer(options =>
 
 var app = builder.Build();
 
-await app.ApplyMigrationsAsync("NEXA_SKIP_MIGRATIONS");
-await app.InitialiseDatabaseAsync();
+try
+{
+    await app.ApplyMigrationsAsync("NEXA_SKIP_MIGRATIONS");
+    await app.InitialiseDatabaseAsync();
+
+    // Initialize log level from server settings
+    using var scope = app.Services.CreateScope();
+    var serverSettingService = scope.ServiceProvider.GetRequiredService<IServerSettingService>();
+    var logLevel = await serverSettingService.GetAsync(
+        ServerSettingKeys.LogLevel,
+        ServerSettingDefaults.LogLevel,
+        CancellationToken.None
+    );
+    LoggingConfiguration.TrySetMinimumLevel(logLevel);
+    Log.Information("Log level set to: {LogLevel}", logLevel);
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Failed to initialize database. Server startup aborted.");
+    Environment.Exit(1);
+}
 
 app.UseSerilogRequestLogging();
 app.UseResponseCompression();
@@ -305,7 +349,15 @@ recurringJobManager.AddOrUpdate<IJobProgressReporter>(
             jobNotificationOptions.HistoryRetentionDays,
             CancellationToken.None
         ),
-    Cron.Daily
+    Cron.Daily,
+    new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc }
+);
+
+recurringJobManager.AddOrUpdate<PlaybackCleanupJob>(
+    "cleanup-stale-playback-sessions",
+    job => job.ExecuteAsync(CancellationToken.None),
+    Cron.Weekly(DayOfWeek.Sunday, 3, 0),
+    new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc }
 );
 
 app.UseOpenTelemetryPrometheusScrapingEndpoint();

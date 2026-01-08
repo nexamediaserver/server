@@ -1,8 +1,13 @@
 // SPDX-FileCopyrightText: 2025 Nexa Contributors <contact@nexa.ms>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#pragma warning disable SA1204 // Static members should appear before non-static members
+
 using System.Diagnostics;
+
 using Microsoft.Extensions.Logging;
+
+using NexaMediaServer.Core.Constants;
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
@@ -21,6 +26,7 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
     private readonly IPartsRegistry partsRegistry;
     private readonly IImageOrchestrationService imageOrchestrationService;
     private readonly IContentRatingService contentRatingService;
+    private readonly ILockedFieldEnforcer lockedFieldEnforcer;
     private readonly ILogger<SidecarMetadataService> logger;
 
     /// <summary>
@@ -29,17 +35,20 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
     /// <param name="partsRegistry">Registry providing sidecar parsers and embedded extractors.</param>
     /// <param name="imageOrchestrationService">Service for ingesting artwork.</param>
     /// <param name="contentRatingService">Service for resolving content ratings to ages.</param>
+    /// <param name="lockedFieldEnforcer">Service for checking and enforcing field locks.</param>
     /// <param name="logger">Structured logger for diagnostic output.</param>
     public SidecarMetadataService(
         IPartsRegistry partsRegistry,
         IImageOrchestrationService imageOrchestrationService,
         IContentRatingService contentRatingService,
+        ILockedFieldEnforcer lockedFieldEnforcer,
         ILogger<SidecarMetadataService> logger
     )
     {
         this.partsRegistry = partsRegistry;
         this.imageOrchestrationService = imageOrchestrationService;
         this.contentRatingService = contentRatingService;
+        this.lockedFieldEnforcer = lockedFieldEnforcer;
         this.logger = logger;
     }
 
@@ -47,10 +56,14 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
     public async Task<SidecarEnrichmentResult> ExtractLocalMetadataAsync(
         MetadataItem item,
         LibrarySection library,
-        CancellationToken cancellationToken
+        IEnumerable<string>? overrideFields = null,
+        CancellationToken cancellationToken = default
     )
     {
         var result = new SidecarEnrichmentResult();
+
+        // Materialize overrideFields to avoid multiple enumeration
+        var overrideFieldsList = overrideFields?.ToList();
 
         if (IsExtraMetadata(item.MetadataType))
         {
@@ -163,7 +176,7 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
 
             // Apply overlay (sidecar > embedded) to item fields.
             var updated =
-                this.ApplyLocalMetadata(item, sidecar, embedded)
+                this.ApplyLocalMetadata(item, sidecar, embedded, overrideFieldsList)
                 || sidecarIngested
                 || embeddedIngested;
             if (updated)
@@ -187,13 +200,22 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
                 or MetadataType.ShortForm
                 or MetadataType.ExtraOther;
 
-    private static IEnumerable<FileSystemMetadata> EnumerateSidecarCandidates(
+    private static string PreferString(string incoming, string current) =>
+        string.IsNullOrWhiteSpace(incoming) ? current : incoming.Trim();
+
+    private static string? PreferOptionalString(string? incoming, string? current) =>
+        string.IsNullOrWhiteSpace(incoming) ? current : incoming.Trim();
+
+    private IEnumerable<FileSystemMetadata> EnumerateSidecarCandidates(
         FileSystemMetadata mediaFile
     )
     {
+        this.LogEnumerateSidecarCalled(mediaFile.Path);
+
         var directoryPath = Path.GetDirectoryName(mediaFile.Path);
         if (string.IsNullOrEmpty(directoryPath))
         {
+            this.LogNoDirectoryForMedia(mediaFile.Path);
             yield break;
         }
 
@@ -202,43 +224,35 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
         {
             candidates = System.IO.Directory.EnumerateFiles(directoryPath);
         }
-        catch
+        catch (Exception ex)
         {
+            this.LogEnumerationFailed(directoryPath, ex);
             yield break;
         }
 
-        foreach (var candidatePath in candidates)
+        var candidatesList = candidates.ToList();
+        this.LogEnumeratedFiles(directoryPath, candidatesList.Count);
+
+        foreach (var candidatePath in candidatesList)
         {
+            this.LogCheckingCandidate(candidatePath);
+
             if (string.Equals(candidatePath, mediaFile.Path, StringComparison.OrdinalIgnoreCase))
             {
+                this.LogSkippedMediaFile(candidatePath);
                 continue;
             }
 
             var candidate = FileSystemMetadata.FromPath(candidatePath);
             if (!candidate.Exists || candidate.IsDirectory)
             {
+                this.LogSkippedNonExistentOrDirectory(candidatePath);
                 continue;
             }
 
+            this.LogYieldingCandidate(candidatePath);
             yield return candidate;
         }
-    }
-
-    private static string PreferString(string incoming, string current) =>
-        string.IsNullOrWhiteSpace(incoming) ? current : incoming.Trim();
-
-    private static string? PreferOptionalString(string? incoming, string? current) =>
-        string.IsNullOrWhiteSpace(incoming) ? current : incoming.Trim();
-
-    private static bool AssignIfChanged<T>(T current, T next, Action<T> setter)
-    {
-        if (EqualityComparer<T>.Default.Equals(current, next))
-        {
-            return false;
-        }
-
-        setter(next);
-        return true;
     }
 
     /// <summary>
@@ -432,15 +446,19 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
     private bool ApplyLocalMetadata(
         MetadataItem target,
         SidecarParseResult? sidecar,
-        EmbeddedMetadataResult? embedded
+        EmbeddedMetadataResult? embedded,
+        IEnumerable<string>? overrideFields
     )
     {
-        var changed = this.ApplyOverlay(target, embedded?.Metadata);
-        changed |= this.ApplyOverlay(target, sidecar?.Metadata);
+        var changed = this.ApplyOverlay(target, embedded?.Metadata, overrideFields);
+        changed |= this.ApplyOverlay(target, sidecar?.Metadata, overrideFields);
         return changed;
     }
 
-    private bool ApplyOverlay(MetadataItem target, MetadataBaseItem? overlay)
+    private bool ApplyOverlay(
+        MetadataItem target,
+        MetadataBaseItem? overlay,
+        IEnumerable<string>? overrideFields)
     {
         if (overlay is null)
         {
@@ -449,44 +467,63 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
 
         var changed = false;
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.Title,
             target.Title,
             PreferString(overlay.Title, target.Title),
-            value => target.Title = value
+            value => target.Title = value!,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.SortTitle,
             target.SortTitle,
             PreferString(overlay.SortTitle, target.SortTitle),
-            value => target.SortTitle = value
+            value => target.SortTitle = value!,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.OriginalTitle,
             target.OriginalTitle,
             PreferOptionalString(overlay.OriginalTitle, target.OriginalTitle),
-            value => target.OriginalTitle = value
+            value => target.OriginalTitle = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.Summary,
             target.Summary,
             PreferOptionalString(overlay.Summary, target.Summary),
-            value => target.Summary = value
+            value => target.Summary = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.Tagline,
             target.Tagline,
             PreferOptionalString(overlay.Tagline, target.Tagline),
-            value => target.Tagline = value
+            value => target.Tagline = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.ContentRating,
             target.ContentRating,
             PreferOptionalString(overlay.ContentRating, target.ContentRating),
-            value => target.ContentRating = value
+            value => target.ContentRating = value,
+            overrideFields
         );
 
-        // Resolve content rating age if rating is provided
-        if (!string.IsNullOrWhiteSpace(overlay.ContentRating))
+        // Resolve content rating age if rating is provided and not locked
+        if (!string.IsNullOrWhiteSpace(overlay.ContentRating)
+            && !this.lockedFieldEnforcer.IsFieldLocked(target, MetadataFieldNames.ContentRatingAge, overrideFields))
         {
             var isTelevision =
                 target.MetadataType
@@ -498,85 +535,147 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
                 overlay.ContentRatingCountryCode,
                 isTelevision
             );
-            changed |= AssignIfChanged(
+            changed |= this.lockedFieldEnforcer.AssignIfUnlocked(
+                target,
+                MetadataFieldNames.ContentRatingAge,
                 target.ContentRatingAge,
                 resolvedAge ?? target.ContentRatingAge,
-                value => target.ContentRatingAge = value
+                value => target.ContentRatingAge = value,
+                overrideFields
             );
         }
         else
         {
-            changed |= AssignIfChanged(
+            changed |= this.lockedFieldEnforcer.AssignIfUnlocked(
+                target,
+                MetadataFieldNames.ContentRatingAge,
                 target.ContentRatingAge,
                 overlay.ContentRatingAge ?? target.ContentRatingAge,
-                value => target.ContentRatingAge = value
+                value => target.ContentRatingAge = value,
+                overrideFields
             );
         }
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignIfUnlocked(
+            target,
+            MetadataFieldNames.ReleaseDate,
             target.ReleaseDate,
             overlay.ReleaseDate ?? target.ReleaseDate,
-            value => target.ReleaseDate = value
+            value => target.ReleaseDate = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        // Year is derived from ReleaseDate when both are provided
+        // Validate consistency and correct if needed
+        var yearToAssign = overlay.Year ?? target.Year;
+        if (overlay.ReleaseDate.HasValue && overlay.Year.HasValue)
+        {
+            if (overlay.Year.Value != overlay.ReleaseDate.Value.Year)
+            {
+                this.LogYearReleaseDateMismatch(
+                    target.Title,
+                    overlay.Year.Value,
+                    overlay.ReleaseDate.Value,
+                    overlay.ReleaseDate.Value.Year
+                );
+                yearToAssign = overlay.ReleaseDate.Value.Year;
+            }
+        }
+        else if (overlay.ReleaseDate.HasValue)
+        {
+            // Derive year from release date if year not explicitly provided
+            yearToAssign = overlay.ReleaseDate.Value.Year;
+        }
+
+        changed |= this.lockedFieldEnforcer.AssignIfUnlocked(
+            target,
+            MetadataFieldNames.ReleaseDate,
             target.Year,
-            overlay.Year ?? target.Year,
-            value => target.Year = value
+            yearToAssign,
+            value => target.Year = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignIfUnlocked(
+            target,
+            MetadataFieldNames.Index,
             target.Index,
             overlay.Index ?? target.Index,
-            value => target.Index = value
+            value => target.Index = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignIfUnlocked(
+            target,
+            MetadataFieldNames.AbsoluteIndex,
             target.AbsoluteIndex,
             overlay.AbsoluteIndex ?? target.AbsoluteIndex,
-            value => target.AbsoluteIndex = value
+            value => target.AbsoluteIndex = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignIfUnlocked(
+            target,
+            MetadataFieldNames.Duration,
             target.Duration,
             overlay.Duration ?? target.Duration,
-            value => target.Duration = value
+            value => target.Duration = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        // Artwork fields use a composite lock key
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.Thumb,
             target.ThumbUri,
             PreferOptionalString(overlay.ThumbUri, target.ThumbUri),
-            value => target.ThumbUri = value
+            value => target.ThumbUri = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.Thumb,
             target.ThumbHash,
             PreferOptionalString(overlay.ThumbHash, target.ThumbHash),
-            value => target.ThumbHash = value
+            value => target.ThumbHash = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.Art,
             target.ArtUri,
             PreferOptionalString(overlay.ArtUri, target.ArtUri),
-            value => target.ArtUri = value
+            value => target.ArtUri = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.Art,
             target.ArtHash,
             PreferOptionalString(overlay.ArtHash, target.ArtHash),
-            value => target.ArtHash = value
+            value => target.ArtHash = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.Logo,
             target.LogoUri,
             PreferOptionalString(overlay.LogoUri, target.LogoUri),
-            value => target.LogoUri = value
+            value => target.LogoUri = value,
+            overrideFields
         );
 
-        changed |= AssignIfChanged(
+        changed |= this.lockedFieldEnforcer.AssignStringIfUnlocked(
+            target,
+            MetadataFieldNames.Logo,
             target.LogoHash,
             PreferOptionalString(overlay.LogoHash, target.LogoHash),
-            value => target.LogoHash = value
+            value => target.LogoHash = value,
+            overrideFields
         );
 
         return changed;
@@ -588,15 +687,21 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
         CancellationToken cancellationToken
     )
     {
+        this.LogParseSidecarAsyncCalled(mediaFile.Path, this.partsRegistry.SidecarParsers.Count);
+
         if (this.partsRegistry.SidecarParsers.Count == 0)
         {
+            this.LogNoSidecarParsersRegistered();
             return null;
         }
 
         // Enumerate all candidates once upfront for batch processing
-        var candidates = EnumerateSidecarCandidates(mediaFile).ToList();
+        var candidates = this.EnumerateSidecarCandidates(mediaFile).ToList();
+        this.LogCandidatesEnumerated(mediaFile.Path, candidates.Count);
+
         if (candidates.Count == 0)
         {
+            this.LogNoCandidatesFound(mediaFile.Path);
             return null;
         }
 
@@ -765,6 +870,17 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
     private partial void LogSidecarParseFailed(string sidecarPath, Exception ex);
 
     [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Year/ReleaseDate mismatch for '{Title}': Year={ProvidedYear}, ReleaseDate={ReleaseDate}. Using year derived from ReleaseDate: {DerivedYear}"
+    )]
+    private partial void LogYearReleaseDateMismatch(
+        string title,
+        int providedYear,
+        DateOnly releaseDate,
+        int derivedYear
+    );
+
+    [LoggerMessage(
         Level = LogLevel.Debug,
         Message = "Embedded extractor {ExtractorName} finished for {MediaPath} in {ElapsedMs}ms"
     )]
@@ -779,5 +895,77 @@ public sealed partial class SidecarMetadataService : ISidecarMetadataService
         Message = "Embedded metadata extraction failed for {MediaPath}"
     )]
     private partial void LogEmbeddedExtractionFailed(string mediaPath, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "### ParseSidecarAsync called for '{MediaPath}' with {ParserCount} parsers registered"
+    )]
+    private partial void LogParseSidecarAsyncCalled(string mediaPath, int parserCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "### No sidecar parsers registered, skipping sidecar enumeration"
+    )]
+    private partial void LogNoSidecarParsersRegistered();
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "### After EnumerateSidecarCandidates: '{MediaPath}' yielded {Count} candidates"
+    )]
+    private partial void LogCandidatesEnumerated(string mediaPath, int count);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "### No candidates found for '{MediaPath}', returning null"
+    )]
+    private partial void LogNoCandidatesFound(string mediaPath);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "### SidecarMetadataService: EnumerateSidecarCandidates called for '{MediaPath}'"
+    )]
+    private partial void LogEnumerateSidecarCalled(string mediaPath);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "SidecarMetadataService: No directory path for media file '{MediaPath}'"
+    )]
+    private partial void LogNoDirectoryForMedia(string mediaPath);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "SidecarMetadataService: Failed to enumerate files in directory '{DirectoryPath}'"
+    )]
+    private partial void LogEnumerationFailed(string directoryPath, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "SidecarMetadataService: Enumerated {Count} files in directory '{DirectoryPath}'"
+    )]
+    private partial void LogEnumeratedFiles(string directoryPath, int count);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "SidecarMetadataService: Checking candidate '{CandidatePath}'"
+    )]
+    private partial void LogCheckingCandidate(string candidatePath);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "SidecarMetadataService: Skipped media file '{CandidatePath}'"
+    )]
+    private partial void LogSkippedMediaFile(string candidatePath);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "SidecarMetadataService: Skipped non-existent or directory '{CandidatePath}'"
+    )]
+    private partial void LogSkippedNonExistentOrDirectory(string candidatePath);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "SidecarMetadataService: Yielding sidecar candidate '{CandidatePath}'"
+    )]
+    private partial void LogYieldingCandidate(string candidatePath);
     #endregion
 }

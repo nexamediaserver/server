@@ -5,12 +5,17 @@ using System.Collections.Concurrent;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+
 using Microsoft.Extensions.Logging;
+
 using NetVips;
+
+using NexaMediaServer.Core.Configuration;
 using NexaMediaServer.Core.DTOs;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
 using NexaMediaServer.Core.Services;
+
 using ThumbHashes;
 
 namespace NexaMediaServer.Infrastructure.Services.Images;
@@ -29,7 +34,7 @@ public sealed partial class ImageService : IImageService
     private static readonly string[] CommonImageExtensions = ["jpg", "jpeg", "png", "webp"];
 
     private readonly IApplicationPaths paths;
-    private readonly HttpClient httpClient;
+    private readonly IRemoteMetadataHttpClientFactory httpClientFactory;
     private readonly ConcurrentDictionary<string, string?> resolvedPathCache = new();
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -43,16 +48,16 @@ public sealed partial class ImageService : IImageService
 
     /// <summary>Initializes a new instance of the <see cref="ImageService"/> class.</summary>
     /// <param name="paths">Application paths service.</param>
-    /// <param name="httpClient">HTTP client used to download remote artwork.</param>
+    /// <param name="httpClientFactory">HTTP client factory for downloading remote artwork.</param>
     /// <param name="logger">Logger instance.</param>
     public ImageService(
         IApplicationPaths paths,
-        HttpClient httpClient,
+        IRemoteMetadataHttpClientFactory httpClientFactory,
         ILogger<ImageService> logger
     )
     {
         this.paths = paths;
-        this.httpClient = httpClient;
+        this.httpClientFactory = httpClientFactory;
         this.logger = logger;
     }
 
@@ -805,8 +810,17 @@ public sealed partial class ImageService : IImageService
         {
             try
             {
-                using var response = await this
-                    .httpClient.GetAsync(uri, cancellationToken)
+                // Create HTTP client configured for image downloads with retry and timeout
+                var httpClient = this.httpClientFactory.CreateClient(
+                    new RemoteMetadataHttpOptions
+                    {
+                        AgentName = "ImageDownloader",
+                        MaxRequests = 50, // Higher rate limit for image downloads
+                        TimeWindow = TimeSpan.FromSeconds(1),
+                    });
+
+                using var response = await httpClient
+                    .GetAsync(uri, cancellationToken)
                     .ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {

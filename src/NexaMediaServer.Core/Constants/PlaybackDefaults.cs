@@ -20,8 +20,9 @@ public static class PlaybackDefaults
 
     /// <summary>
     /// Heartbeat interval in seconds used to refresh playback sessions.
+    /// Clients should send heartbeats at this interval to keep sessions alive.
     /// </summary>
-    public const int HeartbeatIntervalSeconds = 30;
+    public const int HeartbeatIntervalSeconds = 15;
 
     /// <summary>
     /// Default inactivity expiry for playback sessions and generators in days.

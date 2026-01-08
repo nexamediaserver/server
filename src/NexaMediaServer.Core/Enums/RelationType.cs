@@ -81,6 +81,64 @@ public enum RelationType
     PersonContributesToAudio = 150,
 
     /// <summary>
+    /// A person metadata entry composes an audio work or recording.
+    /// </summary>
+    PersonComposesAudio = 151,
+
+    /// <summary>
+    /// A person metadata entry conducts an audio performance.
+    /// </summary>
+    PersonConductsAudio = 152,
+
+    /// <summary>
+    /// A person metadata entry writes lyrics for an audio work.
+    /// </summary>
+    PersonWritesLyricsForAudio = 153,
+
+    /// <summary>
+    /// A person metadata entry arranges an audio work or recording.
+    /// </summary>
+    PersonArrangesAudio = 154,
+
+    /// <summary>
+    /// A person metadata entry produces an audio recording or release.
+    /// </summary>
+    PersonProducesAudio = 155,
+
+    /// <summary>
+    /// A person metadata entry engineers an audio recording.
+    /// </summary>
+    PersonEngineersAudio = 156,
+
+    /// <summary>
+    /// A person metadata entry mixes an audio recording.
+    /// </summary>
+    PersonMixesAudio = 157,
+
+    /// <summary>
+    /// A person metadata entry remixes an audio recording.
+    /// </summary>
+    PersonRemixesAudio = 158,
+
+    /// <summary>
+    /// A person metadata entry DJ mixes an audio recording or release.
+    /// </summary>
+    PersonDjMixesAudio = 159,
+
+    /// <summary>
+    /// A person metadata entry directs an audio or video recording.
+    /// </summary>
+    PersonDirectsAudio = 160,
+
+    /// <summary>
+    /// A person metadata entry performs a specific instrument or vocal role.
+    /// </summary>
+    /// <remarks>
+    /// The specific role (e.g., "lead vocals", "guitar", "violin") is stored in the relation's Text field.
+    /// </remarks>
+    PersonPerformsInstrumentOrVocals = 161,
+
+    /// <summary>
     /// A person metadata entry contributes to a literary metadata entry
     /// (literary work, edition, edition item, or book series).
     /// </summary>
@@ -253,6 +311,36 @@ public enum RelationType
     /// A track metadata entry is a mashup built from other track metadata entries.
     /// </summary>
     TrackMashupOfTracks = 459,
+
+    /// <summary>
+    /// A track metadata entry is a performance of an audio work.
+    /// </summary>
+    TrackPerformsWork = 460,
+
+    /// <summary>
+    /// An audio work metadata entry is part of another audio work (e.g., movement in a symphony).
+    /// </summary>
+    AudioWorkPartOfWork = 461,
+
+    /// <summary>
+    /// An audio work metadata entry is based on another audio work.
+    /// </summary>
+    AudioWorkBasedOnWork = 462,
+
+    /// <summary>
+    /// An album release metadata entry is released by a label.
+    /// </summary>
+    AlbumReleaseHasLabel = 463,
+
+    /// <summary>
+    /// A label metadata entry is owned by a company.
+    /// </summary>
+    LabelOwnedByCompany = 464,
+
+    /// <summary>
+    /// A company metadata entry owns a label.
+    /// </summary>
+    CompanyOwnsLabel = 465,
 
     // ------------------------------ Literary ↔ Literary --------------------------------
 

@@ -18,11 +18,14 @@ public interface ISidecarMetadataService
     /// </summary>
     /// <param name="item">The metadata item to enrich.</param>
     /// <param name="library">The library section containing the item.</param>
+    /// <param name="overrideFields">Optional collection of field names to force update, bypassing any locks.
+    /// Use constants from <see cref="Constants.MetadataFieldNames"/> for built-in fields.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing applied status and extracted credits.</returns>
     Task<SidecarEnrichmentResult> ExtractLocalMetadataAsync(
         MetadataItem item,
         LibrarySection library,
-        CancellationToken cancellationToken
+        IEnumerable<string>? overrideFields = null,
+        CancellationToken cancellationToken = default
     );
 }

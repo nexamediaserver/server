@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2025 Nexa Contributors <contact@nexa.ms>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+using System.Collections.Generic;
+
 namespace NexaMediaServer.Core.DTOs.Authentication;
 
 /// <summary>
@@ -8,4 +10,5 @@ namespace NexaMediaServer.Core.DTOs.Authentication;
 /// </summary>
 /// <param name="Email">Primary email for the account.</param>
 /// <param name="IsEmailConfirmed">Indicates whether the email address has been confirmed.</param>
-public sealed record class InfoResponse(string Email, bool IsEmailConfirmed);
+/// <param name="Roles">The roles assigned to this user.</param>
+public sealed record class InfoResponse(string Email, bool IsEmailConfirmed, IReadOnlyList<string> Roles);

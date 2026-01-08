@@ -54,6 +54,11 @@ public sealed class PlaybackCapabilities
     public List<ResponseProfile> ResponseProfiles { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the image formats the client can display without resizing performed server-side.
+    /// </summary>
+    public List<string> SupportedImageFormats { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets a value indicating whether DASH manifests are supported.
     /// </summary>
     public bool SupportsDash { get; set; } = true;

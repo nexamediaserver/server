@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Text.RegularExpressions;
+
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
+
 using IODir = System.IO.Directory;
 using IOPath = System.IO.Path;
 
@@ -214,6 +216,14 @@ public class MovieResolver : ItemResolverBase<Movie>
         else
         {
             // Single file case
+
+            // If the parent directory was already resolved as a Movie, this file
+            // has been claimed by the parent resolver. Skip to avoid duplicates.
+            if (args.ResolvedParent is Movie)
+            {
+                return null;
+            }
+
             if (IsIgnoredName(args.File.Name))
             {
                 return null;

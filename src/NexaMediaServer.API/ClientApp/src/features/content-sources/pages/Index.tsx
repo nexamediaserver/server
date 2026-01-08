@@ -1,7 +1,8 @@
 import { useQuery } from '@apollo/client/react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useDocumentTitle } from '@uidotdev/usehooks'
-import { useMemo } from 'react'
+import { useAtom } from 'jotai'
+import { useCallback, useMemo } from 'react'
 
 import { LibrarySectionQuery } from '@/features/content-sources/queries'
 import {
@@ -9,6 +10,7 @@ import {
   type ContentSourceIndexSearch,
   type ContentSourceViewMode,
 } from '@/features/content-sources/routes'
+import { libraryViewModesAtom } from '@/features/content-sources/store/atoms'
 import { QueryErrorDisplay } from '@/shared/components/QueryErrorDisplay'
 import { Tabs, TabsList, TabsTrigger } from '@/shared/components/ui/tabs'
 import { useLayoutSlot } from '@/shared/hooks'
@@ -16,13 +18,30 @@ import { useLayoutSlot } from '@/shared/hooks'
 import { BrowseView } from '../components/BrowseView'
 import { DiscoverView } from '../components/DiscoverView'
 import { ItemCardScaleSlider } from '../components/ItemCardScaleSlider'
+import { LibraryActionsMenu } from '../components/LibraryActionsMenu'
 
 export function ContentSourceIndex() {
   const { contentSourceId } = contentSourceIndexRoute.useParams()
   const routerState = useRouterState()
   const rawSearch = routerState.location.search as ContentSourceIndexSearch
   const navigate = useNavigate({ from: '/section/$contentSourceId' })
-  const viewMode: ContentSourceViewMode = rawSearch.view ?? 'discover'
+  const [libraryViewModes, setLibraryViewModes] = useAtom(libraryViewModesAtom)
+
+  // Derive view mode: URL param > localStorage preference > default
+  const viewMode: ContentSourceViewMode =
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- False positive due to TypeScript not knowing an array index can be undefined
+    rawSearch.view ?? libraryViewModes[contentSourceId] ?? 'discover'
+
+  // Update both localStorage preference and URL when view changes
+  const handleViewChange = useCallback(
+    (value: ContentSourceViewMode) => {
+      setLibraryViewModes((prev) => ({ ...prev, [contentSourceId]: value }))
+      void navigate({
+        search: { view: value },
+      })
+    },
+    [contentSourceId, navigate, setLibraryViewModes],
+  )
 
   const {
     data: librarySectionData,
@@ -49,12 +68,15 @@ export function ContentSourceIndex() {
               {librarySectionData?.librarySection?.name}
             </h1>
           </Link>
+          {librarySectionData?.librarySection && (
+            <LibraryActionsMenu
+              librarySectionId={librarySectionData.librarySection.id}
+            />
+          )}
         </div>
         <Tabs
           onValueChange={(value) => {
-            void navigate({
-              search: { view: value as ContentSourceViewMode },
-            })
+            handleViewChange(value as ContentSourceViewMode)
           }}
           value={viewMode}
         >
@@ -68,25 +90,10 @@ export function ContentSourceIndex() {
         </div>
       </div>
     ),
-    [
-      contentSourceId,
-      librarySectionData?.librarySection?.name,
-      navigate,
-      viewMode,
-    ],
-  )
-  const subHeaderContent = useMemo(
-    () =>
-      viewMode === 'browse' ? (
-        <div className="text-sm text-muted-foreground">
-          Browse all items in this content source.
-        </div>
-      ) : null,
-    [viewMode],
+    [contentSourceId, handleViewChange, librarySectionData, viewMode],
   )
 
   useLayoutSlot('header', headerContent)
-  useLayoutSlot('subheader', subHeaderContent)
 
   if (librarySectionError) {
     return (
@@ -109,5 +116,10 @@ export function ContentSourceIndex() {
     return <DiscoverView librarySectionId={contentSourceId} />
   }
 
-  return <BrowseView contentSourceId={contentSourceId} />
+  return (
+    <BrowseView
+      contentSourceId={contentSourceId}
+      libraryType={librarySectionData?.librarySection?.type}
+    />
+  )
 }

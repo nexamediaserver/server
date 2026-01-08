@@ -1,9 +1,15 @@
 // SPDX-FileCopyrightText: 2025 Nexa Contributors <contact@nexa.ms>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+using System.Collections.Frozen;
+
 using EFCore.BulkExtensions;
+
+using Hangfire;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
@@ -18,8 +24,28 @@ namespace NexaMediaServer.Infrastructure.Repositories;
 /// </summary>
 public partial class MetadataItemRepository : IMetadataItemRepository
 {
+    /// <summary>
+    /// Collection MetadataTypes that should have collage thumbnails regenerated when children update.
+    /// </summary>
+    private static readonly FrozenSet<MetadataType> CollectionTypes = new HashSet<MetadataType>
+    {
+        MetadataType.PhotoAlbum,
+        MetadataType.PictureSet,
+        MetadataType.BookSeries,
+        MetadataType.GameFranchise,
+        MetadataType.GameSeries,
+        MetadataType.Collection,
+        MetadataType.Playlist,
+    }.ToFrozenSet();
+
+    /// <summary>
+    /// Debounce delay for scheduling parent collection image regeneration.
+    /// </summary>
+    private static readonly TimeSpan CollectionImageDebounceDelay = TimeSpan.FromMinutes(5);
+
     private readonly MediaServerContext context;
     private readonly IMetadataItemUpdateNotifier updateNotifier;
+    private readonly IBackgroundJobClient jobClient;
     private readonly ILogger<MetadataItemRepository> logger;
 
     /// <summary>
@@ -27,15 +53,18 @@ public partial class MetadataItemRepository : IMetadataItemRepository
     /// </summary>
     /// <param name="context">The media server database context.</param>
     /// <param name="updateNotifier">Notifier used to publish update events.</param>
+    /// <param name="jobClient">Background job client for scheduling collection image regeneration.</param>
     /// <param name="logger">Typed logger for repository diagnostics.</param>
     public MetadataItemRepository(
         MediaServerContext context,
         IMetadataItemUpdateNotifier updateNotifier,
+        IBackgroundJobClient jobClient,
         ILogger<MetadataItemRepository> logger
     )
     {
         this.context = context;
         this.updateNotifier = updateNotifier;
+        this.jobClient = jobClient;
         this.logger = logger;
     }
 
@@ -103,6 +132,11 @@ public partial class MetadataItemRepository : IMetadataItemRepository
         );
 
         var pendingRelations = MetadataItemRepositoryHelpers.CollectPendingRelations(
+            flatDtoList,
+            metadataItems
+        );
+
+        var pendingExternalIds = MetadataItemRepositoryHelpers.CollectPendingExternalIds(
             flatDtoList,
             metadataItems
         );
@@ -281,6 +315,13 @@ public partial class MetadataItemRepository : IMetadataItemRepository
             }
         }
 
+        // 4) Insert external identifiers
+        await this.InsertExternalIdentifiersAsync(
+            pendingExternalIds,
+            metadataIdMap,
+            cancellationToken
+        );
+
         if (relationsToInsert.Count > 0)
         {
             await this.context.MetadataRelations.AddRangeAsync(
@@ -304,8 +345,19 @@ public partial class MetadataItemRepository : IMetadataItemRepository
     /// <inheritdoc />
     public async Task UpdateAsync(MetadataItem item)
     {
+        // Detect if ThumbUri changed to trigger parent collection image regeneration
+        var originalThumbUri = this.context.Entry(item).OriginalValues.GetValue<string?>(nameof(MetadataItem.ThumbUri));
+        var thumbUriChanged = item.ThumbUri != originalThumbUri && item.ThumbUri != null;
+
         this.context.MetadataItems.Update(item);
         await this.context.SaveChangesAsync();
+
+        // If this item has a parent and the thumbnail changed, schedule parent image regeneration
+        if (thumbUriChanged && item.ParentId.HasValue)
+        {
+            await this.ScheduleParentCollectionImageRegenerationAsync(item.ParentId.Value);
+        }
+
         try
         {
             await this.updateNotifier.NotifyUpdatedAsync(item.Uuid).ConfigureAwait(false);
@@ -545,6 +597,102 @@ public partial class MetadataItemRepository : IMetadataItemRepository
         }
     }
 
+    /// <summary>
+    /// Inserts external identifiers for metadata items.
+    /// </summary>
+    private async Task InsertExternalIdentifiersAsync(
+        List<(Guid SourceUuid, string Provider, string Value)> pendingExternalIds,
+        Dictionary<Guid, int> metadataIdMap,
+        CancellationToken cancellationToken)
+    {
+        if (pendingExternalIds.Count == 0)
+        {
+            return;
+        }
+
+        var externalIds = new List<ExternalIdentifier>();
+
+        foreach (var (sourceUuid, provider, value) in pendingExternalIds)
+        {
+            if (!metadataIdMap.TryGetValue(sourceUuid, out var metadataItemId))
+            {
+                continue;
+            }
+
+            externalIds.Add(new ExternalIdentifier
+            {
+                MetadataItemId = metadataItemId,
+                Provider = provider,
+                Value = value,
+            });
+        }
+
+        if (externalIds.Count == 0)
+        {
+            return;
+        }
+
+        // Clear navigation properties
+        foreach (var extId in externalIds)
+        {
+            extId.MetadataItem = null!;
+        }
+
+        // Apply audit timestamps
+        BulkAuditTimestamps.ApplyInsertTimestamps(externalIds);
+
+        var cfg = new BulkConfig
+        {
+            PreserveInsertOrder = false,
+            SetOutputIdentity = false,
+        };
+
+        await this.context.BulkInsertAsync(
+            externalIds,
+            cfg,
+            cancellationToken: cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Schedules a delayed job to regenerate the collection image for a parent item.
+    /// Uses a 5-minute debounce to coalesce rapid child updates.
+    /// </summary>
+    /// <param name="parentId">The database ID of the parent metadata item.</param>
+    private async Task ScheduleParentCollectionImageRegenerationAsync(int parentId)
+    {
+        try
+        {
+            // Look up the parent to check if it's a collection type
+            var parent = await this.context.MetadataItems
+                .AsNoTracking()
+                .Where(m => m.Id == parentId)
+                .Select(m => new { m.Uuid, m.MetadataType })
+                .FirstOrDefaultAsync();
+
+            if (parent == null || !CollectionTypes.Contains(parent.MetadataType))
+            {
+                return;
+            }
+
+            // Schedule with delay to debounce rapid child updates
+            this.jobClient.Schedule<ICollectionImageOrchestrator>(
+                svc => svc.RegenerateCollectionImageAsync(parent.Uuid, CancellationToken.None),
+                CollectionImageDebounceDelay
+            );
+        }
+        catch (Exception ex)
+        {
+            this.LogParentRegenerationSchedulingError(parentId, ex);
+        }
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Failed to schedule parent collection image regeneration for parent {ParentId}"
+    )]
+    private partial void LogParentRegenerationSchedulingError(int parentId, Exception ex);
+
     private static class MetadataItemRepositoryHelpers
     {
         /// <summary>
@@ -607,6 +755,37 @@ public partial class MetadataItemRepository : IMetadataItemRepository
                     }
 
                     pending.Add((sourceUuid, normalized, relation.RelationType, relation.Text));
+                }
+            }
+
+            return pending;
+        }
+
+        /// <summary>
+        /// Collects pending external identifiers from DTOs for bulk insertion.
+        /// </summary>
+        internal static List<(Guid SourceUuid, string Provider, string Value)> CollectPendingExternalIds(
+            List<MetadataBaseItem> dtoList,
+            List<MetadataItem> metadataItems)
+        {
+            var pending = new List<(Guid, string, string)>();
+
+            for (var i = 0; i < dtoList.Count && i < metadataItems.Count; i++)
+            {
+                if (dtoList[i].PendingExternalIds.Count == 0)
+                {
+                    continue;
+                }
+
+                var sourceUuid = metadataItems[i].Uuid;
+                foreach (var (provider, value) in dtoList[i].PendingExternalIds)
+                {
+                    if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(value))
+                    {
+                        continue;
+                    }
+
+                    pending.Add((sourceUuid, provider, value.Trim()));
                 }
             }
 

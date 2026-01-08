@@ -19,4 +19,7 @@
   <ItemGroup>
     <AdditionalFiles Include="..\..\stylecop.json" Link="stylecop.json" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NexaMediaServer.Common\NexaMediaServer.Common.csproj" />
+  </ItemGroup>
 </Project>

@@ -3,6 +3,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Core.DTOs.Hubs;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
@@ -77,6 +78,18 @@ public sealed partial class HubService : IHubService
             .OrderBy(h => h.SortOrder)
             .ToList();
 
+        var configuration = ToHubConfiguration(
+            await GetHubConfigurationEntityAsync(
+                context,
+                HubContext.Home,
+                librarySectionId: null,
+                metadataType: null,
+                cancellationToken
+            ).ConfigureAwait(false)
+        );
+
+        definitions = ApplyHubConfiguration(definitions, configuration).ToList();
+
         // Dynamically populate TopByGenre hubs with a random genre
         return await PopulateRandomGenresAsync(context, definitions, null, cancellationToken);
     }
@@ -90,18 +103,35 @@ public sealed partial class HubService : IHubService
     {
         await using var context = await this.contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var libraryType = await context
+        var libraryInfo = await context
             .LibrarySections.Where(ls => ls.Uuid == librarySectionId)
-            .Select(ls => ls.Type)
+            .Select(ls => new { ls.Id, ls.Type })
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        this.LogRetrievingLibraryHubs(librarySectionId, libraryType);
+        if (libraryInfo == null)
+        {
+            return [];
+        }
+
+        this.LogRetrievingLibraryHubs(librarySectionId, libraryInfo.Type);
 
         var definitions = this.hubDefinitionProvider.GetDefaultHubs(
-            libraryType,
+            libraryInfo.Type,
             HubContext.LibraryDiscover
         );
+
+        var configuration = ToHubConfiguration(
+            await GetHubConfigurationEntityAsync(
+                context,
+                HubContext.LibraryDiscover,
+                libraryInfo.Id,
+                metadataType: null,
+                cancellationToken
+            ).ConfigureAwait(false)
+        );
+
+        definitions = ApplyHubConfiguration(definitions, configuration).ToList();
 
         // Dynamically populate TopByGenre hubs with a random genre
         return await PopulateRandomGenresAsync(
@@ -121,15 +151,54 @@ public sealed partial class HubService : IHubService
     {
         await using var context = await this.contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var metadataType = await context
+        var itemInfo = await context
             .MetadataItems.Where(mi => mi.Uuid == metadataItemId)
-            .Select(mi => mi.MetadataType)
+            .Select(mi =>
+                new
+                {
+                    mi.MetadataType,
+                    ChildCount = mi.Children.Count,
+                    mi.LibrarySectionId,
+                }
+            )
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        this.LogRetrievingItemDetailHubs(metadataItemId, metadataType);
+        if (itemInfo == null)
+        {
+            return [];
+        }
 
-        return this.hubDefinitionProvider.GetItemDetailHubs(metadataType);
+        this.LogRetrievingItemDetailHubs(metadataItemId, itemInfo.MetadataType);
+
+        // Pass child count for conditional hub logic (e.g., album release groups)
+        var definitions = this.hubDefinitionProvider.GetItemDetailHubs(
+            itemInfo.MetadataType,
+            itemInfo.ChildCount
+        );
+
+        var configuration = ToHubConfiguration(
+            await GetHubConfigurationEntityAsync(
+                context,
+                HubContext.ItemDetail,
+                itemInfo.LibrarySectionId,
+                itemInfo.MetadataType,
+                cancellationToken
+            ).ConfigureAwait(false)
+        )
+            ?? ToHubConfiguration(
+                await GetHubConfigurationEntityAsync(
+                    context,
+                    HubContext.ItemDetail,
+                    librarySectionId: null,
+                    itemInfo.MetadataType,
+                    cancellationToken
+                ).ConfigureAwait(false)
+            );
+
+        definitions = ApplyHubConfiguration(definitions, configuration).ToList();
+
+        return definitions;
     }
 
     /// <inheritdoc/>
@@ -186,6 +255,9 @@ public sealed partial class HubService : IHubService
                 filterValue
             ),
             HubType.TopByArtist => BuildTopByArtistQuery(dbContext, librarySectionId, filterValue),
+            HubType.Tracks => BuildTracksQuery(dbContext, metadataItemId),
+            HubType.AlbumReleases => BuildAlbumReleasesQuery(dbContext, metadataItemId),
+            HubType.Photos => BuildPhotosQuery(dbContext, metadataItemId),
             _ => dbContext.MetadataItems.Take(0), // Empty query for unsupported hub types
         };
 
@@ -211,6 +283,10 @@ public sealed partial class HubService : IHubService
                 mi.LogoHash,
                 mi.ContentRating,
                 mi.Summary,
+                mi.Index,
+                ParentUuid = mi.Parent != null ? mi.Parent.Uuid : (Guid?)null,
+                ParentTitle = ResolveParentTitleForHub(mi),
+                ParentIndex = mi.Parent != null ? mi.Parent.Index : (int?)null,
             })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -231,7 +307,11 @@ public sealed partial class HubService : IHubService
                 i.LogoUri,
                 i.LogoHash,
                 i.ContentRating,
-                i.Summary
+                i.Summary,
+                i.Index,
+                i.ParentUuid,
+                i.ParentTitle,
+                i.ParentIndex
             ))
             .ToList();
     }
@@ -288,22 +368,59 @@ public sealed partial class HubService : IHubService
     }
 
     /// <inheritdoc/>
+    public async Task<HubConfiguration?> GetHubConfigurationAsync(
+        HubContext context,
+        Guid? librarySectionId,
+        MetadataType? metadataType,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await this.contextFactory.CreateDbContextAsync(cancellationToken);
+
+        int? libraryId = null;
+
+        if (librarySectionId.HasValue)
+        {
+            libraryId = await dbContext
+                .LibrarySections.Where(section => section.Uuid == librarySectionId.Value)
+                .Select(section => (int?)section.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!libraryId.HasValue)
+            {
+                return null;
+            }
+        }
+
+        return ToHubConfiguration(
+            await GetHubConfigurationEntityAsync(
+                dbContext,
+                context,
+                libraryId,
+                metadataType,
+                cancellationToken
+            ).ConfigureAwait(false)
+        );
+    }
+
+    /// <inheritdoc/>
     public async Task<HubConfiguration> UpdateHomeHubConfigurationAsync(
-        string userId,
         HubConfiguration configuration,
         CancellationToken cancellationToken = default
     )
     {
         await using var context = await this.contextFactory.CreateDbContextAsync(cancellationToken);
 
-        this.LogUpdatingHomeHubConfiguration(userId);
+        this.LogUpdatingHomeHubConfiguration();
 
         var existingConfig = await context
             .UserHubConfigurations.FirstOrDefaultAsync(
                 c =>
-                    c.UserId == userId
+                    c.UserId == null
                     && c.Context == HubContext.Home
-                    && c.LibrarySectionId == null,
+                    && c.LibrarySectionId == null
+                    && c.MetadataType == null,
                 cancellationToken
             )
             .ConfigureAwait(false);
@@ -312,7 +429,6 @@ public sealed partial class HubService : IHubService
         {
             existingConfig = new UserHubConfiguration
             {
-                UserId = userId,
                 Context = HubContext.Home,
             };
             context.UserHubConfigurations.Add(existingConfig);
@@ -329,14 +445,13 @@ public sealed partial class HubService : IHubService
     /// <inheritdoc/>
     public async Task<HubConfiguration> UpdateLibraryHubConfigurationAsync(
         Guid librarySectionId,
-        string userId,
         HubConfiguration configuration,
         CancellationToken cancellationToken = default
     )
     {
         await using var context = await this.contextFactory.CreateDbContextAsync(cancellationToken);
 
-        this.LogUpdatingLibraryHubConfiguration(librarySectionId, userId);
+        this.LogUpdatingLibraryHubConfiguration(librarySectionId);
 
         var librarySection = await context
             .LibrarySections.FirstOrDefaultAsync(
@@ -353,9 +468,10 @@ public sealed partial class HubService : IHubService
         var existingConfig = await context
             .UserHubConfigurations.FirstOrDefaultAsync(
                 c =>
-                    c.UserId == userId
+                    c.UserId == null
                     && c.Context == HubContext.LibraryDiscover
-                    && c.LibrarySectionId == librarySection.Id,
+                    && c.LibrarySectionId == librarySection.Id
+                    && c.MetadataType == null,
                 cancellationToken
             )
             .ConfigureAwait(false);
@@ -364,7 +480,6 @@ public sealed partial class HubService : IHubService
         {
             existingConfig = new UserHubConfiguration
             {
-                UserId = userId,
                 Context = HubContext.LibraryDiscover,
                 LibrarySectionId = librarySection.Id,
             };
@@ -377,6 +492,125 @@ public sealed partial class HubService : IHubService
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return configuration;
+    }
+
+    /// <inheritdoc/>
+    public async Task<HubConfiguration> UpdateItemDetailHubConfigurationAsync(
+        MetadataType metadataType,
+        Guid? librarySectionId,
+        HubConfiguration configuration,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var context = await this.contextFactory.CreateDbContextAsync(cancellationToken);
+
+        int? libraryId = null;
+
+        this.LogUpdatingItemDetailHubConfiguration(metadataType, librarySectionId);
+
+        if (librarySectionId.HasValue)
+        {
+            libraryId = await context
+                .LibrarySections.Where(section => section.Uuid == librarySectionId.Value)
+                .Select(section => (int?)section.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!libraryId.HasValue)
+            {
+                return configuration;
+            }
+        }
+
+        var existingConfig = await context
+            .UserHubConfigurations.FirstOrDefaultAsync(
+                c =>
+                    c.UserId == null
+                    && c.Context == HubContext.ItemDetail
+                    && c.MetadataType == metadataType
+                    && c.LibrarySectionId == libraryId,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+
+        if (existingConfig == null)
+        {
+            existingConfig = new UserHubConfiguration
+            {
+                Context = HubContext.ItemDetail,
+                MetadataType = metadataType,
+                LibrarySectionId = libraryId,
+            };
+            context.UserHubConfigurations.Add(existingConfig);
+        }
+
+        existingConfig.EnabledHubTypes = configuration.EnabledHubTypes.ToList();
+        existingConfig.DisabledHubTypes = configuration.DisabledHubTypes.ToList();
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return configuration;
+    }
+
+    private static HubConfiguration? ToHubConfiguration(UserHubConfiguration? entity) =>
+        entity == null
+            ? null
+            : new HubConfiguration(entity.EnabledHubTypes, entity.DisabledHubTypes);
+
+    private static IReadOnlyList<HubDefinition> ApplyHubConfiguration(
+        IReadOnlyList<HubDefinition> defaults,
+        HubConfiguration? configuration
+    )
+    {
+        if (configuration == null)
+        {
+            return defaults;
+        }
+
+        var disabled = configuration.DisabledHubTypes.ToHashSet();
+
+        var definitionsByType = defaults
+            .Where(definition => !disabled.Contains(definition.HubType))
+            .GroupBy(definition => definition.HubType)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        var ordered = new List<HubDefinition>();
+
+        if (configuration.EnabledHubTypes.Count > 0)
+        {
+            foreach (var hubType in configuration.EnabledHubTypes)
+            {
+                if (definitionsByType.TryGetValue(hubType, out var definition))
+                {
+                    ordered.Add(definition);
+                    definitionsByType.Remove(hubType);
+                }
+            }
+        }
+
+        ordered.AddRange(definitionsByType.Values.OrderBy(definition => definition.SortOrder));
+
+        return ordered;
+    }
+
+    private static Task<UserHubConfiguration?> GetHubConfigurationEntityAsync(
+        MediaServerContext context,
+        HubContext hubContext,
+        int? librarySectionId,
+        MetadataType? metadataType,
+        CancellationToken cancellationToken
+    )
+    {
+        return context
+            .UserHubConfigurations.AsNoTracking()
+            .FirstOrDefaultAsync(
+                configuration =>
+                    configuration.UserId == null
+                    && configuration.Context == hubContext
+                    && configuration.LibrarySectionId == librarySectionId
+                    && configuration.MetadataType == metadataType,
+                cancellationToken
+            );
     }
 
     private static IQueryable<MetadataItem> BuildContinueWatchingQuery(
@@ -727,29 +961,169 @@ public sealed partial class HubService : IHubService
         string? artistName
     )
     {
-        var query = context
-            .MetadataItems.Where(mi => mi.ParentId == null)
-            .Where(mi =>
-                mi.MetadataType == MetadataType.AlbumRelease
-                || mi.MetadataType == MetadataType.AlbumReleaseGroup
-            );
+        // Build from relations to ensure we only consider artists that actually contribute to audio items.
+        // Group by artist to compute contribution counts and total view counts in SQL.
+        var audioRelationTypes = new[]
+        {
+            RelationType.PersonContributesToAudio,
+            RelationType.GroupContributesToAudio,
+        };
+
+        // Some pipelines may store the artist on MetadataItemId (expected), others might store it
+        // on RelatedMetadataItemId; cover both directions to be robust.
+        var relations = context.MetadataRelations.Where(r => audioRelationTypes.Contains(r.RelationType));
+
+        var artistAudioPairs = relations.SelectMany(r => new[]
+        {
+            new
+            {
+                ArtistId = r.MetadataItem.MetadataType == MetadataType.Person
+                    || r.MetadataItem.MetadataType == MetadataType.Group
+                        ? (int?)r.MetadataItemId
+                        : null,
+                AudioItem = r.RelatedMetadataItem,
+            },
+            new
+            {
+                ArtistId = r.RelatedMetadataItem.MetadataType == MetadataType.Person
+                    || r.RelatedMetadataItem.MetadataType == MetadataType.Group
+                        ? (int?)r.RelatedMetadataItemId
+                        : null,
+                AudioItem = r.MetadataItem,
+            },
+        }).Where(x => x.ArtistId.HasValue && x.AudioItem != null);
 
         if (librarySectionId.HasValue)
         {
-            query = query.Where(mi => mi.LibrarySection.Uuid == librarySectionId.Value);
+            artistAudioPairs = artistAudioPairs.Where(x => x.AudioItem!.LibrarySection.Uuid == librarySectionId.Value);
         }
+
+        var grouped = artistAudioPairs
+            .GroupBy(x => x.ArtistId!.Value)
+            .Select(g => new
+            {
+                ArtistId = g.Key,
+                ContributionCount = g.Count(),
+                TotalViews = g.Sum(x => x.AudioItem!.Settings.Sum(s => s.ViewCount)),
+            });
+
+        var artists = context.MetadataItems.Where(mi =>
+            mi.MetadataType == MetadataType.Person || mi.MetadataType == MetadataType.Group
+        );
 
         if (!string.IsNullOrEmpty(artistName))
         {
-            query = query.Where(mi =>
-                mi.IncomingRelations.Any(r =>
-                    r.RelationType == RelationType.PersonContributesToAudio
-                    && r.MetadataItem.Title == artistName
-                )
-            );
+            artists = artists.Where(mi => mi.Title == artistName);
         }
 
-        return query.OrderByDescending(mi => mi.CreatedAt);
+        // Join grouped metrics back to artists and order.
+        var query = artists
+            .Join(
+                grouped,
+                artist => artist.Id,
+                metrics => metrics.ArtistId,
+                (artist, metrics) => new { artist, metrics }
+            )
+            .OrderByDescending(x => x.metrics.ContributionCount)
+            .ThenByDescending(x => x.metrics.TotalViews)
+            .Select(x => x.artist);
+
+        return query;
+    }
+
+    private static IQueryable<MetadataItem> BuildTracksQuery(
+        MediaServerContext context,
+        Guid? metadataItemId
+    )
+    {
+        if (!metadataItemId.HasValue)
+        {
+            return context.MetadataItems.Take(0);
+        }
+
+        // Get the item to determine if it's an AlbumReleaseGroup or AlbumRelease
+        var item = context
+            .MetadataItems.Where(mi => mi.Uuid == metadataItemId.Value)
+            .Select(mi => new { mi.Id, mi.MetadataType })
+            .FirstOrDefault();
+
+        if (item == null)
+        {
+            return context.MetadataItems.Take(0);
+        }
+
+        // For AlbumReleaseGroup with single release, get tracks from the single child AlbumRelease
+        // For AlbumRelease, get tracks directly
+        // Tracks are children of AlbumMedium, which is a child of AlbumRelease
+        // Structure: AlbumReleaseGroup -> AlbumRelease -> AlbumMedium -> Track
+        if (item.MetadataType == MetadataType.AlbumReleaseGroup)
+        {
+            // Get the single child AlbumRelease's ID
+            var albumReleaseId = context
+                .MetadataItems.Where(mi => mi.ParentId == item.Id)
+                .Where(mi => mi.MetadataType == MetadataType.AlbumRelease)
+                .Select(mi => mi.Id)
+                .FirstOrDefault();
+
+            if (albumReleaseId == 0)
+            {
+                return context.MetadataItems.Take(0);
+            }
+
+            // Get tracks through AlbumMedium
+            return context
+                .MetadataItems.Where(mi => mi.Parent != null && mi.Parent.ParentId == albumReleaseId)
+                .Where(mi => mi.MetadataType == MetadataType.Track)
+                .OrderBy(mi => mi.Parent!.Index) // Medium/disc index
+                .ThenBy(mi => mi.Index); // Track index
+        }
+
+        // For AlbumRelease, get tracks through its child AlbumMediums
+        return context
+            .MetadataItems.Where(mi => mi.Parent != null && mi.Parent.ParentId == item.Id)
+            .Where(mi => mi.MetadataType == MetadataType.Track)
+            .OrderBy(mi => mi.Parent!.Index) // Medium/disc index
+            .ThenBy(mi => mi.Index); // Track index
+    }
+
+    private static IQueryable<MetadataItem> BuildAlbumReleasesQuery(
+        MediaServerContext context,
+        Guid? metadataItemId
+    )
+    {
+        if (!metadataItemId.HasValue)
+        {
+            return context.MetadataItems.Take(0);
+        }
+
+        // Get releases that are children of the AlbumReleaseGroup
+        return context
+            .MetadataItems.Where(mi =>
+                mi.Parent != null && mi.Parent.Uuid == metadataItemId.Value
+            )
+            .Where(mi => mi.MetadataType == MetadataType.AlbumRelease)
+            .OrderBy(mi => mi.Year)
+            .ThenBy(mi => mi.Title);
+    }
+
+    private static IQueryable<MetadataItem> BuildPhotosQuery(
+        MediaServerContext context,
+        Guid? metadataItemId
+    )
+    {
+        if (!metadataItemId.HasValue)
+        {
+            return context.MetadataItems.Take(0);
+        }
+
+        // Get photos or pictures that are children of a PhotoAlbum or PictureSet
+        return context
+            .MetadataItems.Where(mi =>
+                mi.Parent != null && mi.Parent.Uuid == metadataItemId.Value
+            )
+            .Where(mi => mi.MetadataType == MetadataType.Photo || mi.MetadataType == MetadataType.Picture)
+            .OrderBy(mi => mi.Index)
+            .ThenBy(mi => mi.Title);
     }
 
     /// <summary>
@@ -978,6 +1352,28 @@ public sealed partial class HubService : IHubService
         return result;
     }
 
+    /// <summary>
+    /// Resolves the parent title for a metadata item in hub queries.
+    /// For tracks, returns the album (Parent.Parent) instead of the medium (Parent).
+    /// For other types, returns the direct parent title.
+    /// </summary>
+    private static string? ResolveParentTitleForHub(MetadataItem mi)
+    {
+        if (mi.Parent == null)
+        {
+            return null;
+        }
+
+        // For tracks, the Parent is AlbumMedium (Disc 1, etc.)
+        // We want the album name, which is Parent.Parent (AlbumRelease)
+        if (mi.MetadataType == MetadataType.Track && mi.Parent.Parent != null)
+        {
+            return mi.Parent.Parent.Title;
+        }
+
+        return mi.Parent.Title;
+    }
+
     [LoggerMessage(
         Level = LogLevel.Debug,
         Message = "Retrieving home hub definitions for user {UserId} with {LibraryCount} library types"
@@ -1013,13 +1409,22 @@ public sealed partial class HubService : IHubService
 
     [LoggerMessage(
         Level = LogLevel.Debug,
-        Message = "Updating home hub configuration for user {UserId}"
+        Message = "Updating global home hub configuration"
     )]
-    private partial void LogUpdatingHomeHubConfiguration(string userId);
+    private partial void LogUpdatingHomeHubConfiguration();
 
     [LoggerMessage(
         Level = LogLevel.Debug,
-        Message = "Updating library hub configuration for library {LibrarySectionId} for user {UserId}"
+        Message = "Updating library hub configuration for library {LibrarySectionId}"
     )]
-    private partial void LogUpdatingLibraryHubConfiguration(Guid librarySectionId, string userId);
+    private partial void LogUpdatingLibraryHubConfiguration(Guid librarySectionId);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "Updating item detail hub configuration for {MetadataType} and library {LibrarySectionId}"
+    )]
+    private partial void LogUpdatingItemDetailHubConfiguration(
+        MetadataType metadataType,
+        Guid? librarySectionId
+    );
 }

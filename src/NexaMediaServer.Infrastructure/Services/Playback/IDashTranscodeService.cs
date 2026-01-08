@@ -25,13 +25,23 @@ public interface IDashTranscodeService
     /// </summary>
     /// <param name="mediaPartId">Target media part identifier.</param>
     /// <param name="seekMs">The seek position in milliseconds to start transcoding from.</param>
+    /// <param name="startSegmentNumber">Optional segment number to start from.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The manifest and segment directory information, plus the actual start time.</returns>
     Task<DashSeekResult> EnsureDashWithSeekAsync(
         int mediaPartId,
         long seekMs,
+        int? startSegmentNumber,
         CancellationToken cancellationToken
     );
+
+    /// <summary>
+    /// Waits for a segment file to be created during an active transcode.
+    /// </summary>
+    /// <param name="segmentPath">Full path to the expected segment file.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> if the segment file was created within the timeout; otherwise <c>false</c>.</returns>
+    Task<bool> WaitForSegmentAsync(string segmentPath, CancellationToken cancellationToken);
 }
 
 /// <summary>

@@ -9,6 +9,7 @@ import type { LoginResponse, PublicUser, RefreshResponse } from '../types'
 export interface MeResponse {
   email: string
   isEmailConfirmed: boolean
+  roles: string[]
 }
 
 const API_BASE = '/api/v1'
@@ -93,10 +94,24 @@ export function parseUserFromToken(token: string): null | PublicUser {
     get('email') ??
     get('http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress')
 
+  // Extract roles - check for "roles" array property first, then fallback to claim-based roles
+  const rolesArray = claims.roles as string[] | undefined
+  const roleClaimKey =
+    'http://schemas.microsoft.com/ws/2008/06/identity/claims/role'
+  const roleRaw = claims.role ?? claims[roleClaimKey]
+  const roles: string[] = Array.isArray(rolesArray)
+    ? rolesArray
+    : Array.isArray(roleRaw)
+      ? (roleRaw as string[])
+      : typeof roleRaw === 'string'
+        ? [roleRaw]
+        : []
+
   if (!id && !username && !email) return null
   return {
     email,
     id: id ?? username ?? email ?? 'unknown',
+    roles: roles.length > 0 ? roles : undefined,
     username: username ?? email ?? id ?? 'unknown',
   }
 }

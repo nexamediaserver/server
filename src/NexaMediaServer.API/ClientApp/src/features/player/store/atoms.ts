@@ -1,6 +1,34 @@
 import { atom } from 'jotai'
+import { atomWithStorage } from 'jotai/utils'
 
 import type { Item } from '@/shared/api/graphql/graphql'
+
+/**
+ * Persisted playback session reference used to resume after reloads.
+ */
+export interface PersistedPlaybackSession {
+  currentItemId?: string
+  playbackSessionId: string
+  playlistGeneratorId?: string
+}
+
+/**
+ * Extended originator type that includes fields needed for playback.
+ * Core fields from Item are required, while additional audio-specific
+ * fields (parentTitle, parentThumbUri, originalTitle) may be optionally
+ * provided for enhanced display.
+ */
+export type PlaybackOriginator = Pick<
+  Item,
+  'id' | 'metadataType' | 'primaryPerson' | 'thumbUri' | 'title'
+> & {
+  /** Optional artist/original title display */
+  originalTitle?: string
+  /** Album artwork URL (fallback when track has no thumb) */
+  parentThumbUri?: null | string
+  /** Optional album title (e.g., parent show/album name) */
+  parentTitle?: string
+}
 
 export interface PlaybackState {
   bufferedTime: number
@@ -13,11 +41,19 @@ export interface PlaybackState {
   maximized: boolean
   mediaId?: string
   mediaTitle?: string
-  mediaType?: 'episode' | 'movie' | 'music' | 'unknown'
-  originator?: Pick<Item, 'id' | 'metadataType' | 'thumbUri' | 'title'>
+  mediaType?: 'episode' | 'movie' | 'music' | 'photo' | 'unknown'
+  originator?: PlaybackOriginator
   playbackSessionId?: string
   playbackUrl?: string
   playlistGeneratorId?: string
+  /** Current index within the playlist (0-based). */
+  playlistIndex?: number
+  /** Whether repeat mode is enabled for the playlist. */
+  playlistRepeat?: boolean
+  /** Whether shuffle mode is enabled for the playlist. */
+  playlistShuffle?: boolean
+  /** Total number of items in the playlist. */
+  playlistTotalCount?: number
   /**
    * Server-provided duration in milliseconds.
    * This is authoritative and should be preferred over browser-reported duration,
@@ -50,8 +86,18 @@ export const playbackStateAtom = atom<PlaybackState>({
   volume: 1,
 })
 
-/** Store the last maximized preference to restore it when starting new playback */
-export const lastMaximizedPreferenceAtom = atom<boolean>(false)
+/** Persisted playback session identifier for resume-on-load. */
+export const persistedPlaybackSessionAtom =
+  atomWithStorage<null | PersistedPlaybackSession>(
+    'playback:last-session',
+    null,
+  )
+
+/** Store the last maximized preference to restore it when starting new playback (persisted to localStorage) */
+export const lastMaximizedPreferenceAtom = atomWithStorage<boolean>(
+  'playback:last-maximized',
+  false,
+)
 
 /** Derived atom to check if playback is active */
 export const isPlaybackActiveAtom = atom((get) => {

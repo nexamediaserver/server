@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Globalization;
+
 using FFMpegCore;
+
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Common;
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
@@ -128,13 +131,27 @@ public partial class GopIndexFileAnalyzer : IFileAnalyzer<Video>
     }
 
     /// <summary>
-    /// Parse time as seconds (double) directly - more efficient than TimeSpan.TryParse.
+    /// Parse time string in either decimal seconds (e.g., "1.234567") or sexagesimal format
+    /// (e.g., "0:00:01.234567") as returned by FFMpegCore with -sexagesimal flag.
     /// </summary>
     private static TimeSpan ParseTime(string s)
     {
+        if (string.IsNullOrWhiteSpace(s))
+        {
+            return TimeSpan.Zero;
+        }
+
+        // First try parsing as decimal seconds (most efficient)
         if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds))
         {
             return TimeSpan.FromSeconds(seconds);
+        }
+
+        // FFMpegCore uses -sexagesimal which returns "H:MM:SS.ffffff" format
+        // TimeSpan.TryParse handles this format natively
+        if (TimeSpan.TryParse(s, CultureInfo.InvariantCulture, out var timeSpan))
+        {
+            return timeSpan;
         }
 
         return TimeSpan.Zero;

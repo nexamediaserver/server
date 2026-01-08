@@ -33,22 +33,12 @@ export function HubPeopleRow({
     return null
   }
 
-  const people = data.hubPeople
-
-  // Map hub people (Items with Person type) to the format expected by RoleSlider
-  const roles = people.map((person) => ({
-    name: person.title,
-    personId: person.id,
-    relationship: person.context ?? '',
-    thumbUrl: person.thumbUri,
-  }))
-
   return (
     <div className="min-w-0">
       <RoleSlider
         heading={definition.title}
         librarySectionId={librarySectionId}
-        roles={roles}
+        roles={data.hubPeople}
       />
     </div>
   )

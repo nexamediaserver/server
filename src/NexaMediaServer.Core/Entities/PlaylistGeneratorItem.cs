@@ -50,8 +50,15 @@ public class PlaylistGeneratorItem : AuditableEntity
 
     /// <summary>
     /// Gets or sets the display or deterministic order of this entry.
+    /// This value may change when shuffle is toggled.
     /// </summary>
     public int SortOrder { get; set; }
+
+    /// <summary>
+    /// Gets or sets the original sort order of this entry when it was materialized.
+    /// This value is immutable and used to restore order when shuffle is disabled.
+    /// </summary>
+    public int OriginalSortOrder { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether this entry has been served to the client.

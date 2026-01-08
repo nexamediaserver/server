@@ -27,6 +27,10 @@ public sealed class PlaybackDecisionPayload
         this.Action = response.Action;
         this.StreamPlanJson = response.StreamPlanJson;
         this.NextItemId = nextItemId;
+        this.NextItemTitle = response.NextItemTitle;
+        this.NextItemOriginalTitle = response.NextItemOriginalTitle;
+        this.NextItemParentTitle = response.NextItemParentTitle;
+        this.NextItemThumbUrl = response.NextItemThumbUrl;
         this.CapabilityProfileVersion = capabilityProfileVersion;
         this.PlaybackUrl = response.PlaybackUrl;
         this.TrickplayUrl = response.TrickplayUrl;
@@ -48,6 +52,26 @@ public sealed class PlaybackDecisionPayload
     /// </summary>
     [ID("Item")]
     public Guid? NextItemId { get; }
+
+    /// <summary>
+    /// Gets the title of the next item.
+    /// </summary>
+    public string? NextItemTitle { get; }
+
+    /// <summary>
+    /// Gets the original title of the next item (e.g., artist name for tracks).
+    /// </summary>
+    public string? NextItemOriginalTitle { get; }
+
+    /// <summary>
+    /// Gets the parent title of the next item (e.g., album name for tracks).
+    /// </summary>
+    public string? NextItemParentTitle { get; }
+
+    /// <summary>
+    /// Gets the thumbnail URL of the next item.
+    /// </summary>
+    public string? NextItemThumbUrl { get; }
 
     /// <summary>
     /// Gets the URL the client should load for the decided item.

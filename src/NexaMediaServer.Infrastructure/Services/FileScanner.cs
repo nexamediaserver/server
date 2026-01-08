@@ -3,7 +3,9 @@
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Infrastructure.Services.Ignore;
 using NexaMediaServer.Infrastructure.Services.Parts;
 
@@ -100,15 +102,23 @@ public partial class FileScanner : IFileScanner
                 this.LogDirectoryAccessDenied(current, ex);
             }
 
-            // Yield a batch for every directory, even if it contains zero files, so callers
-            // can build a full directory graph (used for watchers, incremental scans, etc.).
-            yield return new ScannedDirectoryBatch(current, files);
-
-            // Push subdirectories for later processing
+            // Enumerate subdirectories and add them to the batch as well
+            // This allows directory-based resolvers (e.g., MusicAlbumResolver, MovieResolver) to claim directories
             try
             {
                 foreach (var dir in Directory.EnumerateDirectories(current))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    try
+                    {
+                        files.Add(Resolvers.FileSystemMetadata.FromPath(dir));
+                    }
+                    catch (Exception ex)
+                    {
+                        this.LogFileAccessError(dir, ex);
+                    }
+
                     // We defer ignore evaluation for subdirectories until we pop them to allow parent-based rules.
                     stack.Push(dir);
                 }
@@ -121,6 +131,10 @@ public partial class FileScanner : IFileScanner
             {
                 this.LogDirectoryAccessDenied(current, ex);
             }
+
+            // Yield a batch for every directory, even if it contains zero files, so callers
+            // can build a full directory graph (used for watchers, incremental scans, etc.).
+            yield return new ScannedDirectoryBatch(current, files);
         }
     }
 

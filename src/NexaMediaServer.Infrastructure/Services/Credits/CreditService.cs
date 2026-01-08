@@ -3,6 +3,8 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
+using NexaMediaServer.Core.Constants;
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
@@ -19,16 +21,22 @@ namespace NexaMediaServer.Infrastructure.Services.Credits;
 public sealed partial class CreditService : ICreditService
 {
     private readonly MediaServerContext dbContext;
+    private readonly ILockedFieldEnforcer lockedFieldEnforcer;
     private readonly ILogger<CreditService> logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CreditService"/> class.
     /// </summary>
     /// <param name="dbContext">The database context for direct EF Core access.</param>
+    /// <param name="lockedFieldEnforcer">Service for checking and enforcing field locks.</param>
     /// <param name="logger">Structured logger for diagnostic output.</param>
-    public CreditService(MediaServerContext dbContext, ILogger<CreditService> logger)
+    public CreditService(
+        MediaServerContext dbContext,
+        ILockedFieldEnforcer lockedFieldEnforcer,
+        ILogger<CreditService> logger)
     {
         this.dbContext = dbContext;
+        this.lockedFieldEnforcer = lockedFieldEnforcer;
         this.logger = logger;
     }
 
@@ -37,10 +45,35 @@ public sealed partial class CreditService : ICreditService
         MetadataItem owner,
         IEnumerable<PersonCredit>? people,
         IEnumerable<GroupCredit>? groups,
+        IEnumerable<string>? overrideFields = null,
         CancellationToken cancellationToken = default
     )
     {
-        var normalized = NormalizeCredits(people, groups);
+        // Check if credits are locked (Cast, Crew, or combined Credits lock)
+        var creditsLocked = this.lockedFieldEnforcer.IsFieldLocked(
+            owner,
+            MetadataFieldNames.Credits,
+            overrideFields
+        );
+        var castLocked = this.lockedFieldEnforcer.IsFieldLocked(
+            owner,
+            MetadataFieldNames.Cast,
+            overrideFields
+        );
+        var crewLocked = this.lockedFieldEnforcer.IsFieldLocked(
+            owner,
+            MetadataFieldNames.Crew,
+            overrideFields
+        );
+
+        // If all credits are locked, skip processing entirely
+        if (creditsLocked || (castLocked && crewLocked))
+        {
+            this.LogCreditsLocked(owner.Uuid);
+            return false;
+        }
+
+        var normalized = NormalizeCredits(people, groups, castLocked, crewLocked);
         if (normalized.PersonCredits.Count == 0 && normalized.GroupCredits.Count == 0)
         {
             return false;
@@ -109,7 +142,11 @@ public sealed partial class CreditService : ICreditService
         List<GroupCredit> GroupCredits,
         List<string> PersonNames,
         List<string> GroupNames
-    ) NormalizeCredits(IEnumerable<PersonCredit>? people, IEnumerable<GroupCredit>? groups)
+    ) NormalizeCredits(
+        IEnumerable<PersonCredit>? people,
+        IEnumerable<GroupCredit>? groups,
+        bool castLocked = false,
+        bool crewLocked = false)
     {
         var personCredits = (people ?? Enumerable.Empty<PersonCredit>()).ToList();
         var groupCredits = (groups ?? Enumerable.Empty<GroupCredit>()).ToList();
@@ -133,6 +170,23 @@ public sealed partial class CreditService : ICreditService
         groupCredits = groupCredits
             .Where(c => c.Group is not null && !string.IsNullOrWhiteSpace(c.Group.Title))
             .ToList();
+
+        // Filter out locked credit types
+        // Cast = PersonPerformsInVideo, Crew = PersonContributesCrewToVideo and other contribution types
+        if (castLocked)
+        {
+            personCredits = personCredits
+                .Where(c => c.RelationType != RelationType.PersonPerformsInVideo)
+                .ToList();
+        }
+
+        if (crewLocked)
+        {
+            personCredits = personCredits
+                .Where(c => c.RelationType == RelationType.PersonPerformsInVideo)
+                .ToList();
+            groupCredits = new List<GroupCredit>(); // All groups are crew (studios, networks)
+        }
 
         var personNames = personCredits
             .Select(c => c.Person.Title.Trim())
@@ -422,6 +476,12 @@ public sealed partial class CreditService : ICreditService
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Created {Count} new metadata relations")]
     private partial void LogCreatedRelations(int count);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "Credits locked for metadata item {MetadataItemUuid}, skipping upsert"
+    )]
+    private partial void LogCreditsLocked(Guid metadataItemUuid);
     #endregion
 
     private sealed record RelationKey(

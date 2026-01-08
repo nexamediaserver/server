@@ -2,11 +2,12 @@ import { type AnyRoute, createRoute, redirect } from '@tanstack/react-router'
 
 import { type RouterContext } from '@/app/router/types'
 import {
+  LibrarySectionBrowseOptionsQuery,
   LibrarySectionChildrenQuery,
   LibrarySectionQuery,
   PAGE_SIZE,
 } from '@/features/content-sources/queries'
-import { MetadataType } from '@/shared/api/graphql/graphql'
+import { MetadataType, SortEnumType } from '@/shared/api/graphql/graphql'
 
 import { ContentSourceIndex } from '../pages/Index'
 
@@ -50,11 +51,16 @@ export const contentSourceIndexRoute = createRoute({
         variables: { contentSourceId: params.contentSourceId },
       }),
       apolloClient.query({
+        query: LibrarySectionBrowseOptionsQuery,
+        variables: { contentSourceId: params.contentSourceId },
+      }),
+      apolloClient.query({
         query: LibrarySectionChildrenQuery,
         variables: {
           contentSourceId: params.contentSourceId,
-          first: PAGE_SIZE,
-          metadataType: MetadataType.Movie,
+          metadataTypes: [MetadataType.Movie],
+          order: [{ title: SortEnumType.Asc }],
+          take: PAGE_SIZE,
         },
       }),
     ])

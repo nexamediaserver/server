@@ -27,4 +27,24 @@ public enum HardwareAccelerationKind
     /// NVIDIA NVENC/NVDEC.
     /// </summary>
     Nvenc,
+
+    /// <summary>
+    /// AMD Advanced Media Framework (Windows).
+    /// </summary>
+    Amf,
+
+    /// <summary>
+    /// Apple VideoToolbox (macOS/iOS).
+    /// </summary>
+    VideoToolbox,
+
+    /// <summary>
+    /// Rockchip Media Process Platform (Rockchip SoCs).
+    /// </summary>
+    Rkmpp,
+
+    /// <summary>
+    /// Video4Linux2 Memory-to-Memory (Raspberry Pi/ARM).
+    /// </summary>
+    V4L2M2M,
 }

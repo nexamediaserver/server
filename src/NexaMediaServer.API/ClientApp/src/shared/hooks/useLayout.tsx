@@ -32,5 +32,6 @@ export function useLayoutSlot(
     return () => {
       setSlot(name, null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intended
   }, [name, node, setSlot, ...deps])
 }

@@ -3,6 +3,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
 using NexaMediaServer.Core.Entities;
 
 namespace NexaMediaServer.Infrastructure.Data.Configurations;
@@ -43,5 +44,11 @@ public class MetadataItemSettingConfiguration : IEntityTypeConfiguration<Metadat
         builder.HasIndex(e => e.MetadataItemId);
         builder.HasIndex(e => e.LastViewedAt);
         builder.HasIndex(e => e.LastSkippedAt);
+
+        // Composite indexes for user-specific sorting queries
+        // These support sorting by ViewCount, ViewOffset, and LastViewedAt when filtered by UserId
+        builder.HasIndex(e => new { e.UserId, e.ViewCount });
+        builder.HasIndex(e => new { e.UserId, e.ViewOffset });
+        builder.HasIndex(e => new { e.UserId, e.LastViewedAt });
     }
 }

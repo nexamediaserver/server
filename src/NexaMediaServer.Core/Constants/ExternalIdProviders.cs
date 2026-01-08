@@ -126,6 +126,46 @@ public static class ExternalIdProviders
     /// </summary>
     public const string AcoustId = "acoustid";
 
+    /// <summary>
+    /// International Standard Recording Code (ISRC) for recordings.
+    /// </summary>
+    /// <remarks>
+    /// An ISRC uniquely identifies a specific sound recording or music video recording.
+    /// Format: CC-XXX-YY-NNNNN (country, registrant, year, designation).
+    /// </remarks>
+    public const string Isrc = "isrc";
+
+    /// <summary>
+    /// Barcode (UPC/EAN) for physical releases.
+    /// </summary>
+    public const string Barcode = "barcode";
+
+    /// <summary>
+    /// MusicBrainz disc ID derived from CD table of contents.
+    /// </summary>
+    public const string MusicBrainzDiscId = "musicbrainz_disc";
+
+    /// <summary>
+    /// MusicBrainz original album/release identifier.
+    /// </summary>
+    /// <remarks>
+    /// Present when a release has been merged with another release in MusicBrainz.
+    /// </remarks>
+    public const string MusicBrainzOriginalAlbumId = "musicbrainz_original_album";
+
+    /// <summary>
+    /// MusicBrainz original artist identifier.
+    /// </summary>
+    /// <remarks>
+    /// Present when a recording has been merged with another recording in MusicBrainz.
+    /// </remarks>
+    public const string MusicBrainzOriginalArtistId = "musicbrainz_original_artist";
+
+    /// <summary>
+    /// MusicBrainz label identifier.
+    /// </summary>
+    public const string MusicBrainzLabel = "musicbrainz_label";
+
     // -------------------------------- Book Providers --------------------------------
 
     /// <summary>

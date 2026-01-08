@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Linq.Expressions;
+
 using CoreEntity = NexaMediaServer.Core.Entities.MetadataItem;
 
 namespace NexaMediaServer.API.Types;
@@ -29,13 +30,10 @@ public static class MetadataMappings
             ContentRating = m.ContentRating ?? string.Empty,
             Year = m.Year ?? 0,
             OriginallyAvailableAt = m.ReleaseDate,
-            ParentId = m.Parent != null ? m.Parent.Uuid : Guid.Empty,
-            GrandparentId =
-                m.Parent != null && m.Parent.Parent != null ? m.Parent.Parent.Uuid : Guid.Empty,
-            ParentTitle = m.Parent != null ? m.Parent.Title : string.Empty,
+            ParentId = m.Parent != null ? m.Parent.Uuid : null,
             LibrarySectionUuid = m.LibrarySection.Uuid,
             Index = m.Index ?? 0,
-            Length = m.Duration ?? 0,
+            Length = (m.Duration ?? 0) * 1000,
             ThumbUri = m.ThumbUri ?? string.Empty,
             ThumbHash = m.ThumbHash ?? string.Empty,
             ArtUri = m.ArtUri ?? string.Empty,
@@ -47,6 +45,10 @@ public static class MetadataMappings
             Genres = m.Genres.Select(g => g.Name).ToList(),
             Tags = m.Tags.Select(t => t.Name).ToList(),
             IsPromoted = m.IsPromoted,
+            ContentRatingAge = m.ContentRatingAge,
+            CreatedAt = m.CreatedAt,
+            LockedFields = m.LockedFields.ToList(),
+            ExtraFieldsRaw = m.ExtraFields,
         };
 
     /// <summary>

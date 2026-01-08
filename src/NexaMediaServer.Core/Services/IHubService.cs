@@ -89,14 +89,27 @@ public interface IHubService
     );
 
     /// <summary>
+    /// Gets a stored hub configuration for a context and optional scope.
+    /// </summary>
+    /// <param name="context">The hub context.</param>
+    /// <param name="librarySectionId">Optional library section UUID for scoped configurations.</param>
+    /// <param name="metadataType">Optional metadata type (for item detail hubs).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The stored configuration if present; otherwise null.</returns>
+    Task<HubConfiguration?> GetHubConfigurationAsync(
+        HubContext context,
+        Guid? librarySectionId,
+        MetadataType? metadataType,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
     /// Updates the hub configuration for the home page.
     /// </summary>
-    /// <param name="userId">The ID of the user.</param>
     /// <param name="configuration">The new hub configuration.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The updated configuration.</returns>
     Task<HubConfiguration> UpdateHomeHubConfigurationAsync(
-        string userId,
         HubConfiguration configuration,
         CancellationToken cancellationToken = default
     );
@@ -105,13 +118,26 @@ public interface IHubService
     /// Updates the hub configuration for a library section's discover page.
     /// </summary>
     /// <param name="librarySectionId">The UUID of the library section.</param>
-    /// <param name="userId">The ID of the user.</param>
     /// <param name="configuration">The new hub configuration.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The updated configuration.</returns>
     Task<HubConfiguration> UpdateLibraryHubConfigurationAsync(
         Guid librarySectionId,
-        string userId,
+        HubConfiguration configuration,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// Updates the hub configuration for a specific metadata type and optional library on detail pages.
+    /// </summary>
+    /// <param name="metadataType">The metadata type the configuration applies to.</param>
+    /// <param name="librarySectionId">Optional library section UUID to scope the configuration.</param>
+    /// <param name="configuration">The new hub configuration.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The updated configuration.</returns>
+    Task<HubConfiguration> UpdateItemDetailHubConfigurationAsync(
+        MetadataType metadataType,
+        Guid? librarySectionId,
         HubConfiguration configuration,
         CancellationToken cancellationToken = default
     );

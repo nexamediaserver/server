@@ -3,6 +3,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+
 using NexaMediaServer.Core.Repositories;
 using NexaMediaServer.Core.Services;
 

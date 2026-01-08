@@ -66,7 +66,69 @@ public sealed class DashTranscodeJob
     public bool EnableToneMapping { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether the source is HDR content.
+    /// </summary>
+    public bool IsHdr { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the source is interlaced.
+    /// </summary>
+    public bool IsInterlaced { get; init; }
+
+    /// <summary>
+    /// Gets the rotation angle in degrees (0, 90, 180, 270).
+    /// </summary>
+    public int Rotation { get; init; }
+
+    /// <summary>
+    /// Gets the source video codec name (e.g., "h264", "hevc").
+    /// </summary>
+    public string SourceVideoCodec { get; init; } = "h264";
+
+    /// <summary>
+    /// Gets a value indicating whether hardware decoding should be used.
+    /// </summary>
+    public bool UseHardwareDecoder { get; init; }
+
+    /// <summary>
+    /// Gets the source video width.
+    /// </summary>
+    public int SourceWidth { get; init; }
+
+    /// <summary>
+    /// Gets the source video height.
+    /// </summary>
+    public int SourceHeight { get; init; }
+
+    /// <summary>
+    /// Gets the target video width for scaling.
+    /// </summary>
+    public int? TargetWidth { get; init; }
+
+    /// <summary>
+    /// Gets the target video height for scaling.
+    /// </summary>
+    public int? TargetHeight { get; init; }
+
+    /// <summary>
     /// Gets the optional force_key_frames expression to align segments to GoP data.
     /// </summary>
     public string? ForceKeyFramesExpression { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the source contains a video stream.
+    /// </summary>
+    public bool HasVideo { get; init; } = true;
+
+    /// <summary>
+    /// Gets a value indicating whether the source contains an audio stream.
+    /// </summary>
+    public bool HasAudio { get; init; } = true;
+
+    /// <summary>
+    /// Gets the starting segment number for seek-based transcodes.
+    /// When non-null, FFmpeg will number segments starting from this value
+    /// instead of 1, allowing the client to request the correct segment indices.
+    /// </summary>
+    public int? StartSegmentNumber { get; init; }
 }

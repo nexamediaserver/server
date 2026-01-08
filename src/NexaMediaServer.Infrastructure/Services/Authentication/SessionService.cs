@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Collections.Concurrent;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using NexaMediaServer.Core.Configuration;
 using NexaMediaServer.Core.DTOs.Authentication;
 using NexaMediaServer.Core.Entities;
@@ -15,10 +17,18 @@ namespace NexaMediaServer.Infrastructure.Services.Authentication;
 /// <summary>
 /// Default implementation of <see cref="ISessionService"/>.
 /// </summary>
-public sealed partial class SessionService : ISessionService
+public sealed partial class SessionService : ISessionService, IDisposable
 {
     private static readonly ConcurrentDictionary<Guid, CachedSession> SessionCache = new();
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
+#pragma warning disable S1144 // Timer is used via its automatic callback execution
+    private static readonly Timer CleanupTimer = new(
+        CleanupExpiredCacheEntries,
+        null,
+        TimeSpan.FromMinutes(1),
+        TimeSpan.FromMinutes(1)
+    );
+#pragma warning restore S1144
 
     private readonly IDeviceRepository deviceRepository;
     private readonly ISessionRepository sessionRepository;
@@ -223,6 +233,32 @@ public sealed partial class SessionService : ISessionService
                 session.RevokedAt is not null
             ))
             .ToList();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        // Note: CleanupTimer is static and shared, we don't dispose it per instance
+        // but we ensure it's cleaned up when the app shuts down
+    }
+
+    private static void CleanupExpiredCacheEntries(object? state)
+    {
+        var now = DateTime.UtcNow;
+        var expiredKeys = new List<Guid>();
+
+        foreach (var kvp in SessionCache)
+        {
+            if (kvp.Value.ValidUntil <= now)
+            {
+                expiredKeys.Add(kvp.Key);
+            }
+        }
+
+        foreach (var key in expiredKeys)
+        {
+            SessionCache.TryRemove(key, out _);
+        }
     }
 
     private sealed record CachedSession(Session? Session, DateTime ValidUntil);

@@ -8,6 +8,7 @@ using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Enums;
 using NexaMediaServer.Infrastructure.Services.Metadata;
 using NexaMediaServer.Infrastructure.Services.Resolvers;
+
 using Xunit;
 
 namespace NexaMediaServer.Tests.Unit;

@@ -3,9 +3,13 @@
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+
+
 using Hangfire;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Common;
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
@@ -17,6 +21,7 @@ using NexaMediaServer.Infrastructure.Services.Agents;
 using NexaMediaServer.Infrastructure.Services.Analysis;
 using NexaMediaServer.Infrastructure.Services.Images;
 using NexaMediaServer.Infrastructure.Services.Metadata;
+using NexaMediaServer.Infrastructure.Services.Music;
 using NexaMediaServer.Infrastructure.Services.Parts;
 using NexaMediaServer.Infrastructure.Services.Resolvers;
 
@@ -33,11 +38,11 @@ public sealed partial class MetadataService : IMetadataService
     private readonly IMetadataItemRepository metadataItemRepository;
     private readonly IImageService imageService;
     private readonly IPartsRegistry partsRegistry;
+    private readonly ISidecarMetadataService sidecarMetadataService;
     private readonly IBackgroundJobClient jobClient;
     private readonly MediaServerContext dbContext;
     private readonly IGenreNormalizationService genreNormalizationService;
     private readonly ITagModerationService tagModerationService;
-    private readonly IContentRatingService contentRatingService;
 
     [SuppressMessage(
         "Style",
@@ -55,11 +60,11 @@ public sealed partial class MetadataService : IMetadataService
     /// <param name="metadataItemRepository">The metadata item repository.</param>
     /// <param name="imageService">The image service for image handling.</param>
     /// <param name="partsRegistry">Registry providing typed analyzers and image providers.</param>
+    /// <param name="sidecarMetadataService">Service for parsing sidecar files and extracting embedded metadata.</param>
     /// <param name="jobClient">Hangfire job client for enqueueing follow-up jobs.</param>
     /// <param name="dbContext">The database context for direct EF Core access.</param>
     /// <param name="genreNormalizationService">Service for normalizing genre names.</param>
     /// <param name="tagModerationService">Service for filtering tags via allowlist/blocklist.</param>
-    /// <param name="contentRatingService">Service for resolving content ratings to ages.</param>
     /// <param name="logger">Structured logger for diagnostic output.</param>
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Major Code Smell",
@@ -73,11 +78,11 @@ public sealed partial class MetadataService : IMetadataService
         IMetadataItemRepository metadataItemRepository,
         IImageService imageService,
         IPartsRegistry partsRegistry,
+        ISidecarMetadataService sidecarMetadataService,
         IBackgroundJobClient jobClient,
         MediaServerContext dbContext,
         IGenreNormalizationService genreNormalizationService,
         ITagModerationService tagModerationService,
-        IContentRatingService contentRatingService,
         ILogger<MetadataService> logger
     )
     {
@@ -87,11 +92,11 @@ public sealed partial class MetadataService : IMetadataService
         this.metadataItemRepository = metadataItemRepository;
         this.imageService = imageService;
         this.partsRegistry = partsRegistry;
+        this.sidecarMetadataService = sidecarMetadataService;
         this.jobClient = jobClient;
         this.dbContext = dbContext;
         this.genreNormalizationService = genreNormalizationService;
         this.tagModerationService = tagModerationService;
-        this.contentRatingService = contentRatingService;
         this.logger = logger;
     }
 
@@ -342,7 +347,7 @@ public sealed partial class MetadataService : IMetadataService
 
         this.LogMediaItemsFound(mediaItems.Count, metadataItemUuid);
         var metadataDto = MetadataItemMapper.Map(meta);
-        var fileAnalyzers = this.ResolveFileAnalyzers(metadataDto);
+        var fileAnalyzers = FileAnalyzerResolver.Resolve(metadataDto, this.partsRegistry);
 
         // PERFORMANCE OPTIMIZATION:
         // Process all media items in parallel instead of sequentially.
@@ -364,7 +369,7 @@ public sealed partial class MetadataService : IMetadataService
                     {
                         this.LogRunningAnalyzer(analyzer.Name, media.Id);
                         return await analyzer
-                            .AnalyzeAsync(media, parts, CancellationToken.None)
+                            .Analyze(media, parts, CancellationToken.None)
                             .ConfigureAwait(false);
                     }
                     catch (Exception ex)
@@ -948,50 +953,7 @@ public sealed partial class MetadataService : IMetadataService
         && !string.Equals(identifier, "sidecar", StringComparison.OrdinalIgnoreCase)
         && !string.Equals(identifier, "embedded", StringComparison.OrdinalIgnoreCase);
 
-    // Static helpers must precede instance helpers to satisfy style ordering rules.
-    private static IEnumerable<FileSystemMetadata> EnumerateSidecarCandidates(
-        FileSystemMetadata mediaFile
-    )
-    {
-        var directoryPath = Path.GetDirectoryName(mediaFile.Path);
-        if (string.IsNullOrEmpty(directoryPath))
-        {
-            yield break;
-        }
-
-        IEnumerable<string> candidates;
-        try
-        {
-            candidates = System.IO.Directory.EnumerateFiles(directoryPath);
-        }
-        catch
-        {
-            yield break;
-        }
-
-        foreach (var candidatePath in candidates)
-        {
-            if (string.Equals(candidatePath, mediaFile.Path, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var candidate = FileSystemMetadata.FromPath(candidatePath);
-            if (!candidate.Exists || candidate.IsDirectory)
-            {
-                continue;
-            }
-
-            yield return candidate;
-        }
-    }
-
-    private static string PreferString(string incoming, string current) =>
-        string.IsNullOrWhiteSpace(incoming) ? current : incoming.Trim();
-
-    private static string? PreferOptionalString(string? incoming, string? current) =>
-        string.IsNullOrWhiteSpace(incoming) ? current : incoming.Trim();
-
+#pragma warning disable SA1204 // Static members should appear before non-static members
     private static bool IsExtraMetadata(MetadataType metadataType) =>
         metadataType
             is MetadataType.Trailer
@@ -1003,170 +965,6 @@ public sealed partial class MetadataService : IMetadataService
                 or MetadataType.Scene
                 or MetadataType.ShortForm
                 or MetadataType.ExtraOther;
-
-    private static bool AssignIfChanged<T>(T current, T next, Action<T> setter)
-    {
-        if (EqualityComparer<T>.Default.Equals(current, next))
-        {
-            return false;
-        }
-
-        setter(next);
-        return true;
-    }
-
-    private bool ApplyLocalMetadata(
-        MetadataItem target,
-        SidecarParseResult? sidecar,
-        EmbeddedMetadataResult? embedded
-    )
-    {
-        var changed = this.ApplyOverlay(target, embedded?.Metadata);
-        changed |= this.ApplyOverlay(target, sidecar?.Metadata);
-        return changed;
-    }
-
-    private bool ApplyOverlay(MetadataItem target, MetadataBaseItem? overlay)
-    {
-        if (overlay is null)
-        {
-            return false;
-        }
-
-        var changed = false;
-
-        changed |= AssignIfChanged(
-            target.Title,
-            PreferString(overlay.Title, target.Title),
-            value => target.Title = value
-        );
-
-        changed |= AssignIfChanged(
-            target.SortTitle,
-            PreferString(overlay.SortTitle, target.SortTitle),
-            value => target.SortTitle = value
-        );
-
-        changed |= AssignIfChanged(
-            target.OriginalTitle,
-            PreferOptionalString(overlay.OriginalTitle, target.OriginalTitle),
-            value => target.OriginalTitle = value
-        );
-
-        changed |= AssignIfChanged(
-            target.Summary,
-            PreferOptionalString(overlay.Summary, target.Summary),
-            value => target.Summary = value
-        );
-
-        changed |= AssignIfChanged(
-            target.Tagline,
-            PreferOptionalString(overlay.Tagline, target.Tagline),
-            value => target.Tagline = value
-        );
-
-        changed |= AssignIfChanged(
-            target.ContentRating,
-            PreferOptionalString(overlay.ContentRating, target.ContentRating),
-            value => target.ContentRating = value
-        );
-
-        // Resolve content rating age if rating is provided
-        if (!string.IsNullOrWhiteSpace(overlay.ContentRating))
-        {
-            var isTelevision =
-                target.MetadataType
-                is MetadataType.Show
-                    or MetadataType.Season
-                    or MetadataType.Episode;
-            var resolvedAge = this.contentRatingService.ResolveAge(
-                overlay.ContentRating,
-                overlay.ContentRatingCountryCode,
-                isTelevision
-            );
-            changed |= AssignIfChanged(
-                target.ContentRatingAge,
-                resolvedAge ?? target.ContentRatingAge,
-                value => target.ContentRatingAge = value
-            );
-        }
-        else
-        {
-            changed |= AssignIfChanged(
-                target.ContentRatingAge,
-                overlay.ContentRatingAge ?? target.ContentRatingAge,
-                value => target.ContentRatingAge = value
-            );
-        }
-
-        changed |= AssignIfChanged(
-            target.ReleaseDate,
-            overlay.ReleaseDate ?? target.ReleaseDate,
-            value => target.ReleaseDate = value
-        );
-
-        changed |= AssignIfChanged(
-            target.Year,
-            overlay.Year ?? target.Year,
-            value => target.Year = value
-        );
-
-        changed |= AssignIfChanged(
-            target.Index,
-            overlay.Index ?? target.Index,
-            value => target.Index = value
-        );
-
-        changed |= AssignIfChanged(
-            target.AbsoluteIndex,
-            overlay.AbsoluteIndex ?? target.AbsoluteIndex,
-            value => target.AbsoluteIndex = value
-        );
-
-        changed |= AssignIfChanged(
-            target.Duration,
-            overlay.Duration ?? target.Duration,
-            value => target.Duration = value
-        );
-
-        changed |= AssignIfChanged(
-            target.ThumbUri,
-            PreferOptionalString(overlay.ThumbUri, target.ThumbUri),
-            value => target.ThumbUri = value
-        );
-
-        changed |= AssignIfChanged(
-            target.ThumbHash,
-            PreferOptionalString(overlay.ThumbHash, target.ThumbHash),
-            value => target.ThumbHash = value
-        );
-
-        changed |= AssignIfChanged(
-            target.ArtUri,
-            PreferOptionalString(overlay.ArtUri, target.ArtUri),
-            value => target.ArtUri = value
-        );
-
-        changed |= AssignIfChanged(
-            target.ArtHash,
-            PreferOptionalString(overlay.ArtHash, target.ArtHash),
-            value => target.ArtHash = value
-        );
-
-        changed |= AssignIfChanged(
-            target.LogoUri,
-            PreferOptionalString(overlay.LogoUri, target.LogoUri),
-            value => target.LogoUri = value
-        );
-
-        changed |= AssignIfChanged(
-            target.LogoHash,
-            PreferOptionalString(overlay.LogoHash, target.LogoHash),
-            value => target.LogoHash = value
-        );
-
-        return changed;
-    }
 
     /// <summary>
     /// Runs sidecar and embedded metadata parsing, returning results without persisting.
@@ -1211,87 +1009,40 @@ public sealed partial class MetadataService : IMetadataService
 
             this.LogApplyingLocalMetadata(item.Uuid, mediaFile.Path);
 
-            var disabledAgents = new HashSet<string>(
-                library.Settings.DisabledMetadataAgents,
-                StringComparer.OrdinalIgnoreCase
-            );
-
-            var sidecar = await this.ParseSidecarAsync(
-                mediaFile,
-                library.Type,
-                disabledAgents,
-                cancellationToken
-            );
-            var embedded = await this.ExtractEmbeddedAsync(
-                mediaFile,
-                library.Type,
-                disabledAgents,
+            // Delegate to SidecarMetadataService to handle all sidecar parsing
+            var sidecarResult = await this.sidecarMetadataService.ExtractLocalMetadataAsync(
+                item,
+                library,
+                null, // overrideFields not used in this context
                 cancellationToken
             );
 
-            // Ingest artwork from sidecar/embedded (stores files, updates URIs on metadata).
-            var sidecarIngested = await this.IngestArtworkAsync(
-                    item,
-                    sidecar?.Metadata,
-                    sidecar?.Source ?? "sidecar",
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
-
-            var embeddedIngested = await this.IngestArtworkAsync(
-                    item,
-                    embedded?.Metadata,
-                    "embedded",
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
-
-            // Collect credits from sidecar.
-            if (sidecar?.People is { Count: > 0 })
+            // Merge results from SidecarMetadataService
+            if (sidecarResult.People is { Count: > 0 })
             {
                 result.People ??= new List<PersonCredit>();
-                result.People.AddRange(sidecar.People);
-
-                var source = string.IsNullOrWhiteSpace(sidecar.Source) ? "sidecar" : sidecar.Source;
-                await this.IngestCreditArtworkAsync(sidecar.People, null, source, cancellationToken)
-                    .ConfigureAwait(false);
+                result.People.AddRange(sidecarResult.People);
             }
 
-            if (sidecar?.Groups is { Count: > 0 })
+            if (sidecarResult.Groups is { Count: > 0 })
             {
                 result.Groups ??= new List<GroupCredit>();
-                result.Groups.AddRange(sidecar.Groups);
-
-                var source = string.IsNullOrWhiteSpace(sidecar.Source) ? "sidecar" : sidecar.Source;
-                await this.IngestCreditArtworkAsync(null, sidecar.Groups, source, cancellationToken)
-                    .ConfigureAwait(false);
+                result.Groups.AddRange(sidecarResult.Groups);
             }
 
-            // Collect genres from sidecar.
-            if (sidecar?.Genres is { Count: > 0 })
+            if (sidecarResult.Genres is { Count: > 0 })
             {
                 result.Genres ??= new List<string>();
-                result.Genres.AddRange(sidecar.Genres);
+                result.Genres.AddRange(sidecarResult.Genres);
             }
 
-            // Collect tags from sidecar.
-            if (sidecar?.Tags is { Count: > 0 })
+            if (sidecarResult.Tags is { Count: > 0 })
             {
                 result.Tags ??= new List<string>();
-                result.Tags.AddRange(sidecar.Tags);
+                result.Tags.AddRange(sidecarResult.Tags);
             }
 
-            if (sidecar is null && embedded is null)
-            {
-                continue;
-            }
-
-            // Apply overlay (sidecar > embedded) to item fields.
-            var updated =
-                this.ApplyLocalMetadata(item, sidecar, embedded)
-                || sidecarIngested
-                || embeddedIngested;
-            if (updated)
+            if (sidecarResult.LocalMetadataApplied)
             {
                 result.LocalMetadataApplied = true;
             }
@@ -1667,316 +1418,6 @@ public sealed partial class MetadataService : IMetadataService
         }
     }
 
-    private async Task<bool> IngestArtworkAsync(
-        MetadataItem item,
-        MetadataBaseItem? metadata,
-        string sourceIdentifier,
-        CancellationToken cancellationToken
-    )
-    {
-        if (metadata is null)
-        {
-            return false;
-        }
-
-        var changed = false;
-
-        async Task<string?> ComputeHashAsync(string? uri)
-        {
-            if (string.IsNullOrWhiteSpace(uri))
-            {
-                return null;
-            }
-
-            return await this
-                .imageService.ComputeThumbHashAsync(uri, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        async Task<string?> IngestAsync(string? uri, ArtworkKind kind)
-        {
-            if (string.IsNullOrWhiteSpace(uri))
-            {
-                return null;
-            }
-
-            return await this
-                .imageService.IngestExternalArtworkAsync(
-                    item,
-                    sourceIdentifier,
-                    kind,
-                    uri,
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
-        }
-
-        var thumb = await IngestAsync(metadata.ThumbUri, ArtworkKind.Poster).ConfigureAwait(false);
-        if (metadata.ThumbUri != thumb)
-        {
-            metadata.ThumbUri = thumb;
-            changed = true;
-        }
-
-        var thumbHash = await ComputeHashAsync(metadata.ThumbUri).ConfigureAwait(false);
-        if (metadata.ThumbHash != thumbHash)
-        {
-            metadata.ThumbHash = thumbHash;
-            changed = true;
-        }
-
-        var backdrop = await IngestAsync(metadata.ArtUri, ArtworkKind.Backdrop)
-            .ConfigureAwait(false);
-        if (metadata.ArtUri != backdrop)
-        {
-            metadata.ArtUri = backdrop;
-            changed = true;
-        }
-
-        var artHash = await ComputeHashAsync(metadata.ArtUri).ConfigureAwait(false);
-        if (metadata.ArtHash != artHash)
-        {
-            metadata.ArtHash = artHash;
-            changed = true;
-        }
-
-        var logo = await IngestAsync(metadata.LogoUri, ArtworkKind.Logo).ConfigureAwait(false);
-        if (metadata.LogoUri != logo)
-        {
-            metadata.LogoUri = logo;
-            changed = true;
-        }
-
-        var logoHash = await ComputeHashAsync(metadata.LogoUri).ConfigureAwait(false);
-        if (metadata.LogoHash != logoHash)
-        {
-            metadata.LogoHash = logoHash;
-            changed = true;
-        }
-
-        return changed;
-    }
-
-    private async Task IngestCreditArtworkAsync(
-        IEnumerable<PersonCredit>? people,
-        IEnumerable<GroupCredit>? groups,
-        string sourceIdentifier,
-        CancellationToken cancellationToken
-    )
-    {
-        if (string.IsNullOrWhiteSpace(sourceIdentifier))
-        {
-            sourceIdentifier = "sidecar";
-        }
-
-        var seen = new HashSet<Guid>();
-
-        async Task IngestForMetadataAsync(MetadataBaseItem metadata)
-        {
-            if (metadata.Uuid == Guid.Empty)
-            {
-                metadata.Uuid = Guid.NewGuid();
-            }
-
-            if (!seen.Add(metadata.Uuid))
-            {
-                return;
-            }
-
-            var owner = new MetadataItem { Uuid = metadata.Uuid };
-            _ = await this.IngestArtworkAsync(owner, metadata, sourceIdentifier, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        if (people != null)
-        {
-            foreach (var person in people)
-            {
-                await IngestForMetadataAsync(person.Person).ConfigureAwait(false);
-            }
-        }
-
-        if (groups != null)
-        {
-            foreach (var group in groups)
-            {
-                await IngestForMetadataAsync(group.Group).ConfigureAwait(false);
-
-                if (group.Members is { Count: > 0 })
-                {
-                    foreach (var member in group.Members)
-                    {
-                        await IngestForMetadataAsync(member.Person).ConfigureAwait(false);
-                    }
-                }
-            }
-        }
-    }
-
-    private async Task<SidecarParseResult?> ParseSidecarAsync(
-        FileSystemMetadata mediaFile,
-        LibraryType libraryType,
-        HashSet<string> disabledAgents,
-        CancellationToken cancellationToken
-    )
-    {
-        if (this.partsRegistry.SidecarParsers.Count == 0)
-        {
-            return null;
-        }
-
-        foreach (var sidecarFile in EnumerateSidecarCandidates(mediaFile))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var result = await this.TryParseSidecarCandidateAsync(
-                mediaFile,
-                sidecarFile,
-                libraryType,
-                disabledAgents,
-                cancellationToken
-            );
-
-            if (result != null)
-            {
-                return result;
-            }
-        }
-
-        return null;
-    }
-
-    private async Task<SidecarParseResult?> TryParseSidecarCandidateAsync(
-        FileSystemMetadata mediaFile,
-        FileSystemMetadata sidecarFile,
-        LibraryType libraryType,
-        HashSet<string> disabledAgents,
-        CancellationToken cancellationToken
-    )
-    {
-        foreach (var parser in this.partsRegistry.SidecarParsers)
-        {
-            // Skip disabled parsers
-            if (disabledAgents.Contains(parser.Name))
-            {
-                continue;
-            }
-
-            if (!parser.CanParse(sidecarFile))
-            {
-                continue;
-            }
-
-            try
-            {
-                var sw = Stopwatch.StartNew();
-                var result = await parser.ParseAsync(
-                    new SidecarParseRequest(mediaFile, sidecarFile, libraryType),
-                    cancellationToken
-                );
-
-                if (result != null)
-                {
-                    this.LogSidecarParserFinished(
-                        parser.Name,
-                        sidecarFile.Path,
-                        sw.ElapsedMilliseconds
-                    );
-                    return result;
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                this.LogSidecarParseFailed(sidecarFile.Path, ex);
-            }
-        }
-
-        return null;
-    }
-
-    private async Task<EmbeddedMetadataResult?> ExtractEmbeddedAsync(
-        FileSystemMetadata mediaFile,
-        LibraryType libraryType,
-        HashSet<string> disabledAgents,
-        CancellationToken cancellationToken
-    )
-    {
-        if (this.partsRegistry.EmbeddedMetadataExtractors.Count == 0)
-        {
-            return null;
-        }
-
-        foreach (var extractor in this.partsRegistry.EmbeddedMetadataExtractors)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // Skip disabled extractors
-            if (disabledAgents.Contains(extractor.Name))
-            {
-                continue;
-            }
-
-            if (!extractor.CanExtract(mediaFile))
-            {
-                continue;
-            }
-
-            try
-            {
-                var sw = Stopwatch.StartNew();
-                var result = await extractor.ExtractAsync(
-                    new EmbeddedMetadataRequest(mediaFile, libraryType),
-                    cancellationToken
-                );
-
-                if (result != null)
-                {
-                    this.LogEmbeddedExtractorFinished(
-                        extractor.Name,
-                        mediaFile.Path,
-                        sw.ElapsedMilliseconds
-                    );
-                    return result;
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                this.LogEmbeddedExtractionFailed(mediaFile.Path, ex);
-            }
-        }
-
-        return null;
-    }
-
-    private FileAnalyzerAdapter[] ResolveFileAnalyzers(MetadataBaseItem metadata)
-    {
-        ArgumentNullException.ThrowIfNull(metadata);
-        return metadata switch
-        {
-            Movie movie => this.CreateAnalyzerAdapters(movie),
-            Show show => this.CreateAnalyzerAdapters(show),
-            Season season => this.CreateAnalyzerAdapters(season),
-            Episode episode => this.CreateAnalyzerAdapters(episode),
-            Trailer trailer => this.CreateAnalyzerAdapters(trailer),
-            Clip clip => this.CreateAnalyzerAdapters(clip),
-            Video video => this.CreateAnalyzerAdapters(video),
-            AlbumReleaseGroup group => this.CreateAnalyzerAdapters(group),
-            AlbumRelease release => this.CreateAnalyzerAdapters(release),
-            Track track => this.CreateAnalyzerAdapters(track),
-            Recording recording => this.CreateAnalyzerAdapters(recording),
-            AudioWork work => this.CreateAnalyzerAdapters(work),
-            _ => Array.Empty<FileAnalyzerAdapter>(),
-        };
-    }
-
     private ImageProviderAdapter[] ResolveImageProviders(MetadataBaseItem metadata)
     {
         ArgumentNullException.ThrowIfNull(metadata);
@@ -1994,22 +1435,14 @@ public sealed partial class MetadataService : IMetadataService
             Track track => this.CreateImageProviderAdapters(track),
             Recording recording => this.CreateImageProviderAdapters(recording),
             AudioWork work => this.CreateImageProviderAdapters(work),
+            Photo photo => this.CreateImageProviderAdapters(photo),
+            Picture picture => this.CreateImageProviderAdapters(picture),
+
+            // Collection types use MetadataCollectionItem base for image providers
+            MetadataCollectionItem collection => this.CreateImageProviderAdapters(collection),
+
             _ => Array.Empty<ImageProviderAdapter>(),
         };
-    }
-
-    private FileAnalyzerAdapter[] CreateAnalyzerAdapters<TMetadata>(TMetadata metadata)
-        where TMetadata : MetadataBaseItem
-    {
-        var analyzers = this.partsRegistry.GetFileAnalyzers<TMetadata>();
-        if (analyzers.Count == 0)
-        {
-            return Array.Empty<FileAnalyzerAdapter>();
-        }
-
-        return analyzers
-            .Select(analyzer => FileAnalyzerAdapter.Create(metadata, analyzer))
-            .ToArray();
     }
 
     private ImageProviderAdapter[] CreateImageProviderAdapters<TMetadata>(TMetadata metadata)
@@ -2301,6 +1734,17 @@ public sealed partial class MetadataService : IMetadataService
         Message = "Ordered {Count} metadata agents: {AgentNames}"
     )]
     private partial void LogAgentsOrdered(int count, string agentNames);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Year/ReleaseDate mismatch for '{Title}': Year={ProvidedYear}, ReleaseDate={ReleaseDate}. Using year derived from ReleaseDate: {DerivedYear}"
+    )]
+    private partial void LogYearReleaseDateMismatch(
+        string title,
+        int providedYear,
+        DateOnly releaseDate,
+        int derivedYear
+    );
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Invoking metadata agent {AgentName}")]
     private partial void LogInvokingAgent(string agentName);
@@ -2607,60 +2051,6 @@ public sealed partial class MetadataService : IMetadataService
         }
     }
 
-    private sealed class FileAnalyzerAdapter
-    {
-        private readonly Func<MediaItem, bool> supports;
-        private readonly Func<
-            MediaItem,
-            IReadOnlyList<MediaPart>,
-            CancellationToken,
-            Task<FileAnalysisResult?>
-        > analyze;
-
-        private FileAnalyzerAdapter(
-            string name,
-            int order,
-            Func<MediaItem, bool> supports,
-            Func<
-                MediaItem,
-                IReadOnlyList<MediaPart>,
-                CancellationToken,
-                Task<FileAnalysisResult?>
-            > analyze
-        )
-        {
-            this.Name = name;
-            this.Order = order;
-            this.supports = supports;
-            this.analyze = analyze;
-        }
-
-        public string Name { get; }
-
-        public int Order { get; }
-
-        public static FileAnalyzerAdapter Create<TMetadata>(
-            TMetadata metadata,
-            IFileAnalyzer<TMetadata> analyzer
-        )
-            where TMetadata : MetadataBaseItem
-        {
-            return new FileAnalyzerAdapter(
-                analyzer.Name,
-                analyzer.Order,
-                item => analyzer.Supports(item, metadata),
-                (item, parts, token) => analyzer.AnalyzeAsync(item, metadata, parts, token)
-            );
-        }
-
-        public bool Supports(MediaItem item) => this.supports(item);
-
-        public Task<FileAnalysisResult?> AnalyzeAsync(
-            MediaItem item,
-            IReadOnlyList<MediaPart> parts,
-            CancellationToken cancellationToken
-        ) => this.analyze(item, parts, cancellationToken);
-    }
 
     private sealed class ImageProviderAdapter
     {

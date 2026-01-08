@@ -18,10 +18,12 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Moq" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\NexaMediaServer.Common\NexaMediaServer.Common.csproj" />
     <ProjectReference Include="..\..\src\NexaMediaServer.Core\NexaMediaServer.Core.csproj" />
-    <ProjectReference Include="..\..\src\NexaMediaServer.Infrastructure\NexaMediaServer.Infrastructure.csproj" />
+    <ProjectReference
+      Include="..\..\src\NexaMediaServer.Infrastructure\NexaMediaServer.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

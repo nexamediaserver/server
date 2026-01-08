@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Security.Claims;
+
 using HotChocolate.Authorization;
+
 using Microsoft.AspNetCore.Http;
+
 using NexaMediaServer.Core.DTOs.Playback;
 using NexaMediaServer.Core.Services;
 using NexaMediaServer.Core.Services.Authentication;
 using NexaMediaServer.Infrastructure.Services;
+
 using ClaimTypeConstants = NexaMediaServer.Core.Constants.ClaimTypes;
 using CoreMetadataItem = NexaMediaServer.Core.Entities.MetadataItem;
 
@@ -60,11 +64,23 @@ public static partial class Mutation
 
         var metadata = await ResolveMetadataEntityAsync(input.ItemId, metadataService);
 
+        // Resolve originator metadata item if provided
+        int? originatorMetadataItemId = null;
+        if (input.OriginatorId.HasValue)
+        {
+            var originator = await metadataService.GetByUuidAsync(input.OriginatorId.Value);
+            originatorMetadataItemId = originator?.Id;
+        }
+
         PlaybackStartResponse response = await playbackService.StartPlaybackAsync(
             sessionId,
             new PlaybackStartRequest
             {
                 MetadataItemId = metadata.Id,
+                OriginatorMetadataItemId = originatorMetadataItemId,
+                PlaylistType = input.PlaylistType,
+                Shuffle = input.Shuffle,
+                Repeat = input.Repeat,
                 Originator = input.Originator,
                 ContextJson = input.ContextJson,
                 CapabilityProfileVersion = input.CapabilityProfileVersion,
@@ -192,6 +208,7 @@ public static partial class Mutation
                 CurrentMetadataItemId = metadata.Id,
                 Status = input.Status,
                 ProgressMs = input.ProgressMs,
+                JumpIndex = input.JumpIndex,
             },
             cancellationToken
         );
@@ -274,8 +291,52 @@ public static partial class Mutation
             response.CurrentMetadataItemUuid,
             response.PlaylistGeneratorId,
             response.CapabilityProfileVersion,
-            capabilityMismatch
+            capabilityMismatch,
+            response.StreamPlanJson,
+            response.PlaybackUrl,
+            response.TrickplayUrl,
+            response.DurationMs,
+            response.PlayheadMs,
+            response.State
         );
+    }
+
+    /// <summary>
+    /// Stops an active playback session and cleans up associated resources.
+    /// </summary>
+    /// <param name="input">Stop payload.</param>
+    /// <param name="playbackService">Playback orchestration service.</param>
+    /// <param name="sessionService">Session validation service.</param>
+    /// <param name="httpContextAccessor">HTTP context accessor for claims.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Acknowledgement payload.</returns>
+    [Authorize]
+    public static async Task<PlaybackStopPayload> StopPlaybackAsync(
+        PlaybackStopInput input,
+        [Service] IPlaybackService playbackService,
+        [Service] ISessionService sessionService,
+        [Service] IHttpContextAccessor httpContextAccessor,
+        CancellationToken cancellationToken
+    )
+    {
+        if (input is null)
+        {
+            throw CreatePlaybackGraphQLInputError("Playback stop input is required.");
+        }
+
+        int sessionId = await ResolveSessionIdAsync(
+            httpContextAccessor,
+            sessionService,
+            cancellationToken
+        );
+
+        bool success = await playbackService.StopAsync(
+            sessionId,
+            input.PlaybackSessionId,
+            cancellationToken
+        );
+
+        return new PlaybackStopPayload(success);
     }
 
     /// <summary>

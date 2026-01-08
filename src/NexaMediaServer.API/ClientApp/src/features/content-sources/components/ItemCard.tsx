@@ -1,18 +1,25 @@
 import { Link } from '@tanstack/react-router'
-import { useHover } from '@uidotdev/usehooks'
-import { type Key, type RefObject, useEffect, useRef, useState } from 'react'
+import {
+  type Key,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import IconPlay from '~icons/material-symbols/play-arrow'
 
+import { ItemProgress, MetadataTypeIcon } from '@/domain/components'
 import { ITEM_CARD_MAX_WIDTH_PX } from '@/features/content-sources/lib/itemCardSizing'
 import { useStartPlayback } from '@/features/player'
-import { type Item, MetadataType } from '@/shared/api/graphql/graphql'
+import { MetadataType } from '@/shared/api/graphql/graphql'
 import { Image } from '@/shared/components/Image'
-import { ItemProgress } from '@/shared/components/ItemProgress'
-import { MetadataTypeIcon } from '@/shared/components/MetadataTypeIcon'
 import { Button } from '@/shared/components/ui/button'
 import { cn } from '@/shared/lib/utils'
 
 import { ItemActionsMenu } from './ItemActionsMenu'
+import { type ItemGridItem } from './ItemGrid'
+import { PlayedIndicator } from './PlayedIndicator'
 
 type AspectClass = 'aspect-[2/3]' | 'aspect-square' | 'aspect-video'
 
@@ -38,19 +45,7 @@ type ItemCardProps = Readonly<{
   disableLink?: boolean
   isPlaceholder?: boolean
   isScrolling?: boolean
-  item: Pick<
-    Item,
-    | 'id'
-    | 'isPromoted'
-    | 'length'
-    | 'librarySectionId'
-    | 'metadataType'
-    | 'thumbHash'
-    | 'thumbUri'
-    | 'title'
-    | 'viewOffset'
-    | 'year'
-  >
+  item: ItemGridItem
   renderWidthPx?: number
 }>
 
@@ -77,17 +72,58 @@ export function ItemCard({
   const { startPlaybackForItem } = useStartPlayback()
   const canPlay = item.metadataType !== MetadataType.Unknown
 
-  // Track hover state for enhanced interactions
-  const [hoverRef, isHovered] = useHover<HTMLElement>()
+  // Track hover state manually for better control with dropdown portals
+  const [isHovered, setIsHovered] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+
+  // Keep overlay visible while dropdown is opening/open
+  const handleDropdownOpenChange = useCallback((open: boolean) => {
+    setIsDropdownOpen(open)
+    // Only clear hover state after a brief delay to ensure smooth transition
+    if (!open) {
+      setTimeout(() => {
+        setIsHovered(false)
+      }, 100)
+    }
+  }, [])
+
+  const handleMouseEnter = useCallback(() => {
+    setIsHovered(true)
+  }, [])
+  const handleMouseLeave = useCallback(() => {
+    if (!isDropdownOpen) {
+      setIsHovered(false)
+    }
+  }, [isDropdownOpen])
 
   const subtitleText = getSubtitleText(item)
   const handlePlay = () => {
     if (!canPlay) {
       return
     }
+    const playlistType = (() => {
+      switch (item.metadataType) {
+        case MetadataType.AlbumRelease:
+        case MetadataType.AlbumReleaseGroup:
+          return 'album'
+        case MetadataType.PhotoAlbum:
+        case MetadataType.PictureSet:
+          return 'container'
+        case MetadataType.Season:
+          return 'season'
+        case MetadataType.Show:
+          return 'show'
+        default:
+          return 'single'
+      }
+    })()
 
-    void startPlaybackForItem(item)
+    void startPlaybackForItem({
+      item,
+      originatorId:
+        playlistType === 'single' ? undefined : (item.id as string | undefined),
+      playlistType,
+    })
   }
 
   if (isPlaceholder) {
@@ -132,7 +168,7 @@ export function ItemCard({
       isHovered={isHovered}
       isScrolling={isScrolling}
       item={item}
-      onDropdownOpenChange={setIsDropdownOpen}
+      onDropdownOpenChange={handleDropdownOpenChange}
       resolvedAspect={resolvedAspect}
       resolvedHeightPx={resolvedHeightPx}
       resolvedWidthPx={effectiveWidthPx}
@@ -179,7 +215,8 @@ export function ItemCard({
           )}
           data-index={dataIndex}
           onClick={handlePlay}
-          ref={hoverRef}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
           type="button"
         >
           {media}
@@ -201,11 +238,12 @@ export function ItemCard({
           `,
         )}
         data-index={dataIndex}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         params={{
           contentSourceId: item.librarySectionId,
           metadataItemId: item.id,
         }}
-        ref={hoverRef}
         to={`/section/$contentSourceId/details/$metadataItemId`}
       >
         {media}
@@ -278,6 +316,7 @@ function CardContent({
 }: Readonly<CardContentProps>) {
   const hasThumb = Boolean(item.thumbUri)
   const shouldShowOverlay = !isScrolling && (isHovered || isDropdownOpen)
+  const isPlayed = item.viewCount > 0 || item.viewOffset > 0
 
   return (
     <>
@@ -298,6 +337,8 @@ function CardContent({
           thumbHash={item.thumbHash ?? undefined}
           width={resolvedWidthPx}
         />
+
+        {isPlayed && <PlayedIndicator />}
 
         {!hasThumb && (
           <div
@@ -354,7 +395,7 @@ function CardContent({
             </Button>
             <div
               className={cn(
-                'pointer-events-auto absolute right-2 bottom-2 flex gap-2',
+                'pointer-events-auto absolute right-2 bottom-2 z-10 flex gap-2',
               )}
             >
               <ItemActionsMenu
@@ -377,8 +418,17 @@ function CardContent({
 }
 
 function getSubtitleText(
-  item: Pick<Item, 'metadataType' | 'year'>,
+  item: Pick<Item, 'metadataType' | 'primaryPerson' | 'year'>,
 ): string | undefined {
+  // For music albums, show primary person/group
+  if (
+    (item.metadataType === MetadataType.AlbumRelease ||
+      item.metadataType === MetadataType.AlbumReleaseGroup) &&
+    item.primaryPerson
+  ) {
+    return item.primaryPerson.title
+  }
+
   switch (item.metadataType) {
     case MetadataType.BehindTheScenes:
       return 'Behind the Scenes'

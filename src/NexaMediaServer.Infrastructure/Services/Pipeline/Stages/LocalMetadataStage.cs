@@ -7,7 +7,9 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
+
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
@@ -63,7 +65,8 @@ public sealed partial class LocalMetadataStage : IScanPipelineStage<ScanWorkItem
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (item.File.IsDirectory)
+            // For directories without resolved metadata (e.g., artist folders), skip processing
+            if (item.File.IsDirectory && item.ResolvedMetadata is null)
             {
                 yield return item;
                 continue;
@@ -100,24 +103,101 @@ public sealed partial class LocalMetadataStage : IScanPipelineStage<ScanWorkItem
                 updated = updated with { Sidecar = sidecar, Hints = hints };
             }
 
-            var embedded = await this.ExtractEmbeddedAsync(
-                item.File,
-                context.LibrarySection.Type,
-                cancellationToken
-            );
-            if (embedded != null)
+            // For album hierarchies (music directories), extract embedded metadata from each track
+            if (item.File.IsDirectory && updated.ResolvedMetadata is AlbumReleaseGroup albumGroup)
             {
-                hints = MergeHints(hints, embedded.Hints);
-                updated = updated with { Embedded = embedded, Hints = hints };
+                await this.ExtractEmbeddedForAlbumHierarchyAsync(
+                    albumGroup,
+                    context.LibrarySection.Type,
+                    cancellationToken
+                );
             }
-
-            if (updated.ResolvedMetadata != null)
+            else
             {
-                var merged = this.ApplyLocalMetadata(updated.ResolvedMetadata, sidecar, embedded);
-                updated = updated with { ResolvedMetadata = merged };
+                var embedded = await this.ExtractEmbeddedAsync(
+                    item.File,
+                    context.LibrarySection.Type,
+                    cancellationToken
+                );
+                if (embedded != null)
+                {
+                    hints = MergeHints(hints, embedded.Hints);
+                    updated = updated with { Embedded = embedded, Hints = hints };
+                }
+
+                if (updated.ResolvedMetadata != null)
+                {
+                    var merged = this.ApplyLocalMetadata(updated.ResolvedMetadata, sidecar, embedded);
+                    updated = updated with { ResolvedMetadata = merged };
+                }
             }
 
             yield return updated;
+        }
+    }
+
+    /// <summary>
+    /// Enumerates all <see cref="Track"/> items nested within an album hierarchy.
+    /// </summary>
+    private static IEnumerable<Track> EnumerateTracksInHierarchy(MetadataBaseItem root)
+    {
+        foreach (var child in root.Children)
+        {
+            if (child is Track track)
+            {
+                yield return track;
+            }
+            else
+            {
+                foreach (var nested in EnumerateTracksInHierarchy(child))
+                {
+                    yield return nested;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts embedded metadata from all tracks in an album hierarchy and applies it directly.
+    /// </summary>
+    private async Task ExtractEmbeddedForAlbumHierarchyAsync(
+        AlbumReleaseGroup albumGroup,
+        LibraryType libraryType,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var track in EnumerateTracksInHierarchy(albumGroup))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var trackFilePath = track.MediaItems
+                .SelectMany(mi => mi.Parts)
+                .Select(p => p.File)
+                .FirstOrDefault(f => !string.IsNullOrEmpty(f));
+
+            if (string.IsNullOrEmpty(trackFilePath))
+            {
+                continue;
+            }
+
+            var trackFile = new FileSystemMetadata
+            {
+                Path = trackFilePath,
+                IsDirectory = false,
+                Extension = Path.GetExtension(trackFilePath),
+            };
+
+            var embedded = await this.ExtractEmbeddedAsync(
+                trackFile,
+                libraryType,
+                cancellationToken
+            );
+
+            if (embedded != null)
+            {
+                this.ApplyOverlay(track, embedded.Metadata);
+                ApplyMusicHints(track, embedded.Hints);
+            }
         }
     }
 

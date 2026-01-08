@@ -1,5 +1,5 @@
 import { useMutation } from '@apollo/client/react'
-import { MoreVertical, RefreshCw, Star } from 'lucide-react'
+import { MoreVertical } from 'lucide-react'
 import {
   cloneElement,
   type MouseEvent,
@@ -7,11 +7,14 @@ import {
   useState,
 } from 'react'
 
+import { analyzeItemDocument } from '@/app/graphql/analyze'
 import { refreshItemMetadataDocument } from '@/app/graphql/metadata-refresh'
 import {
   promoteItemDocument,
   unpromoteItemDocument,
 } from '@/app/graphql/promotion'
+import { useIsAdmin } from '@/features/auth'
+import { EditMetadataItemDialog } from '@/features/metadata/components/EditMetadataItemDialog'
 import {
   type RefreshItemMetadataMutation,
   type RefreshItemMetadataMutationVariables,
@@ -27,6 +30,7 @@ import {
 export type ItemActionsMenuProps = Readonly<{
   isPromoted: boolean
   itemId: string
+  onEdit?: () => void
   onOpenChange?: (open: boolean) => void
   trigger?: TriggerElement
 }>
@@ -38,13 +42,17 @@ type TriggerElement = ReactElement<{
 export function ItemActionsMenu({
   isPromoted,
   itemId,
+  onEdit,
   onOpenChange,
   trigger,
 }: ItemActionsMenuProps) {
+  const isAdmin = useIsAdmin()
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [refreshItemMetadata] = useMutation<
     RefreshItemMetadataMutation,
     RefreshItemMetadataMutationVariables
   >(refreshItemMetadataDocument)
+  const [analyzeItem] = useMutation(analyzeItemDocument)
   const [promoteItem] = useMutation(promoteItemDocument, {
     refetchQueries: ['LibrarySectionChildren'],
   })
@@ -58,10 +66,23 @@ export function ItemActionsMenu({
     onOpenChange?.(newOpen)
   }
 
+  const closeMenu = () => {
+    setOpen(false)
+    onOpenChange?.(false)
+  }
+
   const triggerRefresh = () => {
     void refreshItemMetadata({
       variables: {
         includeChildren: true,
+        itemId,
+      },
+    })
+  }
+
+  const triggerAnalyze = () => {
+    void analyzeItem({
+      variables: {
         itemId,
       },
     })
@@ -114,42 +135,97 @@ export function ItemActionsMenu({
         })
 
   return (
-    <DropdownMenu onOpenChange={handleOpenChange} open={open}>
+    <DropdownMenu modal={false} onOpenChange={handleOpenChange} open={open}>
       <DropdownMenuTrigger asChild>{resolvedTrigger}</DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="bottom">
-        <DropdownMenuItem
-          onClick={(event) => {
-            preventEvent(event)
-            togglePromotion()
-            setOpen(false)
-          }}
-          onSelect={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            togglePromotion()
-            setOpen(false)
-          }}
-        >
-          <Star className="size-4" />
-          {isPromoted ? 'Unpromote' : 'Promote'}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={(event) => {
-            preventEvent(event)
-            triggerRefresh()
-            setOpen(false)
-          }}
-          onSelect={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            triggerRefresh()
-            setOpen(false)
-          }}
-        >
-          <RefreshCw className="size-4" />
-          Refresh Metadata
-        </DropdownMenuItem>
+      <DropdownMenuContent
+        align="start"
+        alignOffset={-8}
+        collisionPadding={8}
+        side="bottom"
+        sideOffset={8}
+      >
+        {isAdmin && (
+          <>
+            <DropdownMenuItem
+              onClick={(event) => {
+                preventEvent(event)
+                if (onEdit) {
+                  onEdit()
+                } else {
+                  setEditDialogOpen(true)
+                }
+                closeMenu()
+              }}
+              onSelect={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                if (onEdit) {
+                  onEdit()
+                } else {
+                  setEditDialogOpen(true)
+                }
+                closeMenu()
+              }}
+            >
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(event) => {
+                preventEvent(event)
+                togglePromotion()
+                closeMenu()
+              }}
+              onSelect={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                togglePromotion()
+                closeMenu()
+              }}
+            >
+              {isPromoted ? 'Unpromote' : 'Promote'}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(event) => {
+                preventEvent(event)
+                triggerRefresh()
+                closeMenu()
+              }}
+              onSelect={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                triggerRefresh()
+                closeMenu()
+              }}
+            >
+              Refresh Metadata
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(event) => {
+                preventEvent(event)
+                triggerAnalyze()
+                closeMenu()
+              }}
+              onSelect={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                triggerAnalyze()
+                closeMenu()
+              }}
+            >
+              Analyze
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
+      {isAdmin && !onEdit && (
+        <EditMetadataItemDialog
+          itemId={itemId}
+          onClose={() => {
+            setEditDialogOpen(false)
+          }}
+          open={editDialogOpen}
+        />
+      )}
     </DropdownMenu>
   )
 }

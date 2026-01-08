@@ -19,6 +19,24 @@ internal sealed partial class LocationWatcher
     [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to create watcher for {Path}")]
     private static partial void LogWatcherCreateError(ILogger logger, string path, Exception ex);
 
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "Retrying watcher creation for {Path} (attempt {Attempt}/{MaxRetries}, waiting {DelayMs}ms)"
+    )]
+    private static partial void LogWatcherRetrying(
+        ILogger logger,
+        string path,
+        int attempt,
+        int maxRetries,
+        int delayMs
+    );
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Error polling directory {Path}")]
     private static partial void LogPollingError(ILogger logger, string path, Exception ex);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "Pruned {Count} non-existent deep directories from tracking"
+    )]
+    private static partial void LogPrunedDirectories(ILogger logger, int count);
 }

@@ -11,6 +11,14 @@ const config: CodegenConfig = {
     },
     './src/shared/api/graphql/': {
       config: {
+        scalars: {
+          DateTime: 'Date',
+          JSON: 'string',
+          LocalDate: 'string',
+          Long: 'BigInt',
+          Upload: 'File',
+          UUID: 'string',
+        },
         useTypeImports: true,
       },
       preset: 'client',

@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: 2025 Nexa Contributors <contact@nexa.ms>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+using System;
 using System.Linq;
+
 using NexaMediaServer.Core.DTOs.Playback;
 
 namespace NexaMediaServer.API.Types;
@@ -57,6 +59,11 @@ public sealed class PlaybackCapabilitiesInput
     public List<ResponseProfileInput> ResponseProfiles { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the image formats the client can render without server-side resizing.
+    /// </summary>
+    public List<string> SupportedImageFormats { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets a value indicating whether DASH playback is supported.
     /// </summary>
     public bool? SupportsDash { get; set; }
@@ -97,6 +104,11 @@ public sealed class PlaybackCapabilitiesInput
             SupportsHls = this.SupportsHls ?? false,
             SupportsHdr = this.SupportsHdr ?? false,
             AllowToneMapping = this.AllowToneMapping ?? true,
+            SupportedImageFormats = this.SupportedImageFormats
+                .Select(Core.Playback.PlaybackFormatSelector.NormalizeExtension)
+                .Where(f => !string.IsNullOrWhiteSpace(f))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
         };
 
         return dto;

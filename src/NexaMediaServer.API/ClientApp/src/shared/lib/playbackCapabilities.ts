@@ -85,6 +85,7 @@ function baselineCapabilities(): PlaybackCapabilitiesInput {
         method: 'External',
       },
     ],
+    supportedImageFormats: detectImageFormats(),
     transcodingProfiles: [
       {
         applyConditions: [],
@@ -310,6 +311,7 @@ function detectCapabilities(): PlaybackCapabilitiesInput {
   const videoSupport = detectVideoSupport(video)
   const audioSupport = detectAudioSupport(audio)
   const maxAudioChannels = detectMaxAudioChannels()
+  const supportedImageFormats = detectImageFormats()
 
   cachedCapabilities = {
     codecProfiles: buildCodecProfiles(maxAudioChannels),
@@ -332,6 +334,7 @@ function detectCapabilities(): PlaybackCapabilitiesInput {
         method: 'External',
       },
     ],
+    supportedImageFormats,
     transcodingProfiles: buildTranscodingProfiles(
       videoSupport,
       audioSupport,
@@ -340,6 +343,31 @@ function detectCapabilities(): PlaybackCapabilitiesInput {
   }
 
   return cachedCapabilities
+}
+
+function detectImageFormats(): string[] {
+  if (typeof document === 'undefined') return ['jpg', 'jpeg', 'png']
+
+  const canvas = document.createElement('canvas')
+  if (typeof canvas.toDataURL !== 'function') return ['jpg', 'jpeg', 'png']
+
+  const formats = ['jpg', 'jpeg', 'png']
+
+  const addIfSupported = (format: string, mime: string): void => {
+    try {
+      const dataUri = canvas.toDataURL(mime)
+      if (dataUri.startsWith(`data:${mime}`)) {
+        formats.push(format)
+      }
+    } catch {
+      // ignore unsupported formats
+    }
+  }
+
+  addIfSupported('webp', 'image/webp')
+  addIfSupported('avif', 'image/avif')
+
+  return Array.from(new Set(formats))
 }
 
 function detectMaxAudioChannels(): number {

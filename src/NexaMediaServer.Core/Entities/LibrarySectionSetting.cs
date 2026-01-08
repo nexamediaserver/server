@@ -13,8 +13,9 @@ public class LibrarySectionSetting
     /// <summary>
     /// The default depth (in directory levels) for real-time filesystem watching.
     /// Directories beyond this depth are monitored via periodic polling instead.
+    /// On macOS, defaults to 2 to avoid FSEvents limits; otherwise 4.
     /// </summary>
-    public const int DefaultWatcherDepth = 4;
+    public static readonly int DefaultWatcherDepth = OperatingSystem.IsMacOS() ? 2 : 4;
 
     /// <summary>
     /// The default polling interval for monitoring directories beyond <see cref="WatcherDepth"/>.
@@ -76,11 +77,12 @@ public class LibrarySectionSetting
     /// <summary>
     /// Gets or sets the depth (in directory levels from the library root) to use real-time filesystem watching.
     /// Directories beyond this depth are monitored via periodic polling.
-    /// Defaults to <see cref="DefaultWatcherDepth"/> (4 levels).
+    /// Defaults to <see cref="DefaultWatcherDepth"/> (2 on macOS, 4 on other platforms).
     /// </summary>
     /// <remarks>
-    /// A value of 4 covers typical media structures like <c>Movies/Title (Year)/</c>
-    /// or <c>TV/Show/Season X/Episode</c>. Increase for deeply nested structures.
+    /// macOS has lower default (2) due to FSEvents system limits. On other platforms, 4 levels
+    /// covers typical media structures like <c>Movies/Title (Year)/</c> or <c>TV/Show/Season X/Episode</c>.
+    /// Increase for deeply nested structures, but be aware of platform limitations.
     /// </remarks>
     public int WatcherDepth { get; set; } = DefaultWatcherDepth;
 

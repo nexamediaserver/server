@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Reflection;
+
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Infrastructure.Data.Interceptors;
 
@@ -97,6 +99,11 @@ public class MediaServerContext : IdentityDbContext<User>
     public DbSet<PlaybackSession> PlaybackSessions => this.Set<PlaybackSession>();
 
     /// <summary>
+    /// Gets the DbSet for transcode jobs.
+    /// </summary>
+    public DbSet<TranscodeJob> TranscodeJobs => this.Set<TranscodeJob>();
+
+    /// <summary>
     /// Gets the DbSet for playlist generators.
     /// </summary>
     public DbSet<PlaylistGenerator> PlaylistGenerators => this.Set<PlaylistGenerator>();
@@ -130,6 +137,23 @@ public class MediaServerContext : IdentityDbContext<User>
     /// Gets the DbSet for external identifiers.
     /// </summary>
     public DbSet<ExternalIdentifier> ExternalIdentifiers => this.Set<ExternalIdentifier>();
+
+    /// <summary>
+    /// Gets the DbSet for custom field definitions.
+    /// </summary>
+    public DbSet<CustomFieldDefinition> CustomFieldDefinitions => this.Set<CustomFieldDefinition>();
+
+    /// <summary>
+    /// Gets the DbSet for user detail field configurations.
+    /// </summary>
+    public DbSet<UserDetailFieldConfiguration> UserDetailFieldConfigurations =>
+        this.Set<UserDetailFieldConfiguration>();
+
+    /// <summary>
+    /// Gets the DbSet for admin detail field configurations.
+    /// </summary>
+    public DbSet<DetailFieldConfigurationOverride> DetailFieldConfigurationOverrides =>
+        this.Set<DetailFieldConfigurationOverride>();
 
     /// <inheritdoc/>
     protected override void OnModelCreating(ModelBuilder builder)

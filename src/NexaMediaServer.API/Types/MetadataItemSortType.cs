@@ -18,5 +18,10 @@ public class MetadataItemSortType : SortInputType<MetadataItem>
         // Natural sorting with case-insensitive comparison is handled by the NATURALSORT collation in SQLite
         descriptor.Field(t => t.TitleSort).Name("title");
         descriptor.Field(t => t.Year).Name("year");
+        descriptor.Field(t => t.OriginallyAvailableAt).Name("releaseDate");
+        descriptor.Field(t => t.ContentRatingAge).Name("contentRating");
+        descriptor.Field(t => t.Length).Name("duration");
+        descriptor.Field(t => t.Index).Name("index");
+        descriptor.Field(t => t.CreatedAt).Name("dateAdded");
     }
 }

@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using Hangfire;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Repositories;
@@ -71,7 +73,7 @@ public sealed partial class FileAnalysisOrchestrator : IFileAnalysisOrchestrator
 
         this.LogMediaItemsFound(mediaItems.Count, metadataItemUuid);
         var metadataDto = MetadataItemMapper.Map(meta);
-        var fileAnalyzers = this.ResolveFileAnalyzers(metadataDto);
+        var fileAnalyzers = FileAnalyzerResolver.Resolve(metadataDto, this.partsRegistry);
 
         // PERFORMANCE OPTIMIZATION:
         // Process all media items in parallel instead of sequentially.
@@ -93,7 +95,7 @@ public sealed partial class FileAnalysisOrchestrator : IFileAnalysisOrchestrator
                     {
                         this.LogRunningAnalyzer(analyzer.Name, media.Id);
                         return await analyzer
-                            .AnalyzeAsync(media, parts, CancellationToken.None)
+                            .Analyze(media, parts, CancellationToken.None)
                             .ConfigureAwait(false);
                     }
                     catch (Exception ex)
@@ -289,41 +291,6 @@ public sealed partial class FileAnalysisOrchestrator : IFileAnalysisOrchestrator
             ?? media.GameIsRom;
     }
 
-    private FileAnalyzerAdapter[] ResolveFileAnalyzers(MetadataBaseItem metadata)
-    {
-        ArgumentNullException.ThrowIfNull(metadata);
-        return metadata switch
-        {
-            Movie movie => this.CreateAnalyzerAdapters(movie),
-            Show show => this.CreateAnalyzerAdapters(show),
-            Season season => this.CreateAnalyzerAdapters(season),
-            Episode episode => this.CreateAnalyzerAdapters(episode),
-            Trailer trailer => this.CreateAnalyzerAdapters(trailer),
-            Clip clip => this.CreateAnalyzerAdapters(clip),
-            Video video => this.CreateAnalyzerAdapters(video),
-            AlbumReleaseGroup group => this.CreateAnalyzerAdapters(group),
-            AlbumRelease release => this.CreateAnalyzerAdapters(release),
-            Track track => this.CreateAnalyzerAdapters(track),
-            Recording recording => this.CreateAnalyzerAdapters(recording),
-            AudioWork work => this.CreateAnalyzerAdapters(work),
-            _ => Array.Empty<FileAnalyzerAdapter>(),
-        };
-    }
-
-    private FileAnalyzerAdapter[] CreateAnalyzerAdapters<TMetadata>(TMetadata metadata)
-        where TMetadata : MetadataBaseItem
-    {
-        var analyzers = this.partsRegistry.GetFileAnalyzers<TMetadata>();
-        if (analyzers.Count == 0)
-        {
-            return Array.Empty<FileAnalyzerAdapter>();
-        }
-
-        return analyzers
-            .Select(analyzer => FileAnalyzerAdapter.Create(metadata, analyzer))
-            .ToArray();
-    }
-
     #region Logging
     [LoggerMessage(
         Level = LogLevel.Debug,
@@ -390,58 +357,4 @@ public sealed partial class FileAnalysisOrchestrator : IFileAnalysisOrchestrator
     private partial void LogAnalyzeFilesCompleted(Guid metadataItemUuid);
     #endregion
 
-    private sealed class FileAnalyzerAdapter
-    {
-        private readonly Func<MediaItem, bool> supports;
-        private readonly Func<
-            MediaItem,
-            IReadOnlyList<MediaPart>,
-            CancellationToken,
-            Task<FileAnalysisResult?>
-        > analyze;
-
-        private FileAnalyzerAdapter(
-            string name,
-            int order,
-            Func<MediaItem, bool> supports,
-            Func<
-                MediaItem,
-                IReadOnlyList<MediaPart>,
-                CancellationToken,
-                Task<FileAnalysisResult?>
-            > analyze
-        )
-        {
-            this.Name = name;
-            this.Order = order;
-            this.supports = supports;
-            this.analyze = analyze;
-        }
-
-        public string Name { get; }
-
-        public int Order { get; }
-
-        public static FileAnalyzerAdapter Create<TMetadata>(
-            TMetadata metadata,
-            IFileAnalyzer<TMetadata> analyzer
-        )
-            where TMetadata : MetadataBaseItem
-        {
-            return new FileAnalyzerAdapter(
-                analyzer.Name,
-                analyzer.Order,
-                item => analyzer.Supports(item, metadata),
-                (item, parts, token) => analyzer.AnalyzeAsync(item, metadata, parts, token)
-            );
-        }
-
-        public bool Supports(MediaItem item) => this.supports(item);
-
-        public Task<FileAnalysisResult?> AnalyzeAsync(
-            MediaItem item,
-            IReadOnlyList<MediaPart> parts,
-            CancellationToken cancellationToken
-        ) => this.analyze(item, parts, cancellationToken);
-    }
 }

@@ -33,7 +33,6 @@ export function DirectoryBrowserModal({
 }: DirectoryBrowserModalProps) {
   const [currentPath, setCurrentPath] = useState<null | string>(null)
   const [pathFieldValue, setPathFieldValue] = useState('')
-  const [selectedRoot, setSelectedRoot] = useState<null | string>(null)
 
   const {
     data: rootsData,
@@ -45,7 +44,10 @@ export function DirectoryBrowserModal({
     skip: !open,
   })
 
-  const availableRoots = rootsData?.fileSystemRoots ?? []
+  const availableRoots = useMemo(
+    () => rootsData?.fileSystemRoots ?? [],
+    [rootsData],
+  )
 
   const {
     data: directoryData,
@@ -58,55 +60,32 @@ export function DirectoryBrowserModal({
     variables: { path: currentPath ?? '' },
   })
 
-  const directoryEntries = directoryData?.browseDirectory.entries ?? []
+  const directoryEntries = useMemo(
+    () => directoryData?.browseDirectory.entries ?? [],
+    [directoryData],
+  )
   const parentPath = directoryData?.browseDirectory.parentPath ?? null
 
-  useEffect(() => {
-    if (!open) {
-      setCurrentPath(null)
-      setPathFieldValue('')
-      setSelectedRoot(null)
+  // Derive selected root from current path and available roots
+  const selectedRoot = useMemo(() => {
+    if (!currentPath || !availableRoots.length) {
+      return null
     }
-  }, [open])
-
-  useEffect(() => {
-    if (!open || !availableRoots.length) {
-      return
-    }
-
-    if (!currentPath) {
-      if (initialPath) {
-        setCurrentPath(initialPath)
-        setPathFieldValue(initialPath)
-        return
-      }
-
-      const firstRoot = availableRoots[0]
-      setCurrentPath(firstRoot.path)
-      setPathFieldValue(firstRoot.path)
-    }
-  }, [availableRoots, currentPath, initialPath, open])
-
-  useEffect(() => {
-    if (!open || !currentPath) {
-      return
-    }
-
-    setPathFieldValue(currentPath)
-  }, [currentPath, open])
-
-  useEffect(() => {
-    if (!open || !currentPath || !availableRoots.length) {
-      return
-    }
-
     const match = availableRoots.find((root) =>
       pathBelongsToRoot(currentPath, root.path),
     )
-    if (match) {
-      setSelectedRoot(match.path)
+    return match?.path ?? null
+  }, [availableRoots, currentPath])
+
+  // Initialize with first root when modal opens and roots become available
+  useEffect(() => {
+    if (open && !currentPath && availableRoots.length > 0) {
+      const pathToUse = initialPath ?? availableRoots[0].path
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Desired behavior
+      setCurrentPath(pathToUse)
+      setPathFieldValue(pathToUse)
     }
-  }, [availableRoots, currentPath, open])
+  }, [availableRoots, currentPath, initialPath, open])
 
   const handleNavigateFromInput = () => {
     const trimmed = pathFieldValue.trim()
@@ -127,8 +106,8 @@ export function DirectoryBrowserModal({
     Boolean(currentPath) && !directoryLoading && !directoryError
 
   const handleRootSelection = (path: string) => {
-    setSelectedRoot(path)
     setCurrentPath(path)
+    setPathFieldValue(path)
   }
 
   const handleEntryClick = (entryPath: string, selectable: boolean) => {
@@ -136,6 +115,16 @@ export function DirectoryBrowserModal({
       return
     }
     setCurrentPath(entryPath)
+    setPathFieldValue(entryPath)
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      // Reset when closing
+      setCurrentPath(null)
+      setPathFieldValue('')
+      onClose()
+    }
   }
 
   const rootContent = useMemo(() => {
@@ -323,14 +312,7 @@ export function DirectoryBrowserModal({
   ])
 
   return (
-    <Dialog
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) {
-          onClose()
-        }
-      }}
-      open={open}
-    >
+    <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
         className={`
           max-w-3xl gap-0
@@ -370,7 +352,13 @@ export function DirectoryBrowserModal({
           </div>
         </div>
         <DialogFooter className="mt-auto flex flex-wrap gap-2 bg-stone-700 pt-4">
-          <Button onClick={onClose} type="button" variant="secondary">
+          <Button
+            onClick={() => {
+              handleOpenChange(false)
+            }}
+            type="button"
+            variant="secondary"
+          >
             Cancel
           </Button>
           <Button

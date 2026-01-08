@@ -1,3 +1,5 @@
+export { useContainerSize } from './useContainerSize'
+export type { ContainerSize } from './useContainerSize'
 export {
   handleErrorStandalone,
   showToast,

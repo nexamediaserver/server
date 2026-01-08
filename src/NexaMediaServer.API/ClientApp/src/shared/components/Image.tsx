@@ -1,7 +1,6 @@
 import { useIntersectionObserver } from '@uidotdev/usehooks'
 import {
   type CSSProperties,
-  type ForwardedRef,
   forwardRef,
   type ImgHTMLAttributes,
   useCallback,
@@ -12,7 +11,7 @@ import {
 } from 'react'
 import { thumbHashToDataURL, thumbHashToRGBA } from 'thumbhash'
 
-import { getImageTranscodeUrl } from '@/shared/lib/images'
+import { getImageTranscodeUrl } from '@/domain/utils'
 import { cn } from '@/shared/lib/utils'
 
 export interface ImageProps extends Omit<
@@ -214,22 +213,14 @@ function decodeThumbHash(
   }
 }
 
-function mergeRefs(
-  a: (node: HTMLDivElement | null) => void,
-  b: ForwardedRef<HTMLDivElement>,
-) {
-  return (node: HTMLDivElement | null) => {
-    a(node)
-    if (typeof b === 'function') {
-      b(node)
-    } else if (b) {
-      b.current = node
-    }
-  }
-}
-
 function usePrefersReducedMotion() {
-  const [prefers, setPrefers] = useState(false)
+  const [prefers, setPrefers] = useState(() => {
+    if (typeof globalThis.matchMedia !== 'function') {
+      return false
+    }
+    const mediaQuery = globalThis.matchMedia('(prefers-reduced-motion: reduce)')
+    return mediaQuery.matches
+  })
 
   useEffect(() => {
     if (typeof globalThis.matchMedia !== 'function') {
@@ -237,7 +228,6 @@ function usePrefersReducedMotion() {
     }
 
     const mediaQuery = globalThis.matchMedia('(prefers-reduced-motion: reduce)')
-    setPrefers(mediaQuery.matches)
 
     const listener = (event: MediaQueryListEvent) => {
       setPrefers(event.matches)
@@ -288,10 +278,15 @@ export const Image = forwardRef<HTMLDivElement, ImageProps>(function Image(
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const combinedRef = useCallback(
-    mergeRefs((node) => {
+    (node: HTMLDivElement | null) => {
       containerRef.current = node
       observeRef(node)
-    }, forwardedRef),
+      if (typeof forwardedRef === 'function') {
+        forwardedRef(node)
+      } else if (forwardedRef) {
+        forwardedRef.current = node
+      }
+    },
     [observeRef, forwardedRef],
   )
 
@@ -305,6 +300,11 @@ export const Image = forwardRef<HTMLDivElement, ImageProps>(function Image(
     null,
   )
   const [currentVisible, setCurrentVisible] = useState(false)
+  const hideCurrent = useCallback(() => {
+    requestAnimationFrame(() => {
+      setCurrentVisible(false)
+    })
+  }, [])
   const triggerPreviousExit = useCallback(() => {
     requestAnimationFrame(() => {
       setPreviousExiting(true)
@@ -338,7 +338,7 @@ export const Image = forwardRef<HTMLDivElement, ImageProps>(function Image(
       ? { height: requestHeight, uri: imageUri, width: requestWidth }
       : null
 
-    setCurrentVisible(false)
+    hideCurrent()
 
     const transition = selectTransitionKind(
       currentRef.current,
@@ -361,7 +361,6 @@ export const Image = forwardRef<HTMLDivElement, ImageProps>(function Image(
         setTransitionKind(null)
       }
       setCurrent(null)
-      setCurrentVisible(false)
       currentRef.current = null
 
       return () => {
@@ -410,7 +409,6 @@ export const Image = forwardRef<HTMLDivElement, ImageProps>(function Image(
 
           currentRef.current = nextImage
           setCurrent(nextImage)
-          setCurrentVisible(false)
 
           if (transition) {
             setPrevious(previousImage)
@@ -451,6 +449,7 @@ export const Image = forwardRef<HTMLDivElement, ImageProps>(function Image(
     decoding,
     imageUri,
     isVisible,
+    hideCurrent,
     prefersReducedMotion,
     quality,
     requestHeight,

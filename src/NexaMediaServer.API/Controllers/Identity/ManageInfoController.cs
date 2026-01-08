@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System;
+using System.Linq;
 using System.Threading.Tasks;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+
 using NexaMediaServer.Core.DTOs.Authentication;
 using NexaMediaServer.Core.Entities;
 
@@ -43,7 +46,8 @@ public sealed class ManageInfoController : ControllerBase
             return this.Unauthorized();
         }
 
-        return new InfoResponse(user.Email ?? string.Empty, user.EmailConfirmed);
+        var roles = await this.userManager.GetRolesAsync(user).ConfigureAwait(false);
+        return new InfoResponse(user.Email ?? string.Empty, user.EmailConfirmed, roles.ToArray());
     }
 
     /// <summary>
@@ -114,7 +118,8 @@ public sealed class ManageInfoController : ControllerBase
             }
         }
 
-        return new InfoResponse(user.Email ?? string.Empty, user.EmailConfirmed);
+        var updatedRoles = await this.userManager.GetRolesAsync(user).ConfigureAwait(false);
+        return new InfoResponse(user.Email ?? string.Empty, user.EmailConfirmed, updatedRoles.ToArray());
     }
 
     private async Task<User?> GetCurrentUserAsync()

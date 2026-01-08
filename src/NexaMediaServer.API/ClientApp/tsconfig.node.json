@@ -27,6 +27,7 @@
   },
   "include": [
     "vite.config.ts",
+    "vitest.config.ts",
     "codegen.ts",
     "eslint.config.ts",
     "graphql.config.ts",

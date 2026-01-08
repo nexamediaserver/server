@@ -14,6 +14,7 @@ import {
 } from '@/shared/api/graphql/graphql'
 import { Image } from '@/shared/components/Image'
 import { Button } from '@/shared/components/ui/button'
+import { useContainerSize } from '@/shared/hooks'
 import { cn } from '@/shared/lib/utils'
 
 import { HubItemsQuery } from '../queries'
@@ -52,13 +53,9 @@ export function HubHeroCarousel({
   const [isPaused, setIsPaused] = useState(false)
   const [touchStart, setTouchStart] = useState<null | number>(null)
   const [touchEnd, setTouchEnd] = useState<null | number>(null)
-  const [containerSize, setContainerSize] = useState<null | {
-    height: number
-    width: number
-  }>(null)
 
   const autoAdvanceRef = useRef<null | ReturnType<typeof setInterval>>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const { containerRef, containerSize } = useContainerSize()
 
   const context = getHubContext(librarySectionId, metadataItemId)
 
@@ -76,40 +73,16 @@ export function HubHeroCarousel({
 
   const items = useMemo(() => data?.hubItems ?? [], [data?.hubItems])
 
-  // Reset index if items change
+  // Reset index if items change and current index is out of bounds
   useEffect(() => {
-    if (items.length > 0 && currentIndex >= items.length) {
-      setCurrentIndex(0)
-    }
-  }, [items.length, currentIndex])
-
-  // Measure container size
-  useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
-        const { height, width } = containerRef.current.getBoundingClientRect()
-
-        // Only update if we have valid dimensions
-        if (height > 0 && width > 0) {
-          // Use 2x dimensions for retina displays
-          setContainerSize({
-            height: Math.round(height),
-            width: Math.round(width),
-          })
-        }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Expected behavior
+    setCurrentIndex((prevIndex) => {
+      // If items changed and current index is out of bounds, reset to 0
+      if (items.length > 0 && prevIndex >= items.length) {
+        return 0
       }
-    }
-
-    // Use requestAnimationFrame to ensure DOM is painted
-    requestAnimationFrame(() => {
-      updateSize()
+      return prevIndex
     })
-
-    globalThis.addEventListener('resize', updateSize)
-
-    return () => {
-      globalThis.removeEventListener('resize', updateSize)
-    }
   }, [items.length])
 
   // Auto-advance logic (desktop only)
@@ -180,8 +153,6 @@ export function HubHeroCarousel({
   // Handle play button click
   const handlePlay = useCallback(async () => {
     const item = items[currentIndex]
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (!item) return
 
     await startPlaybackForItem({
       id: item.id,
@@ -193,8 +164,6 @@ export function HubHeroCarousel({
   // Handle info button click
   const handleInfo = useCallback(() => {
     const item = items[currentIndex]
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (!item) return
 
     void navigate({
       params: {
@@ -211,8 +180,6 @@ export function HubHeroCarousel({
   }
 
   const currentItem = items[currentIndex]
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!currentItem) return null
 
   // Use artUri if available, fallback to thumbUri
   const backdropUri = currentItem.artUri ?? currentItem.thumbUri

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Collections.Concurrent;
+
 using NexaMediaServer.Core.DTOs;
 using NexaMediaServer.Core.Enums;
 
@@ -95,10 +96,8 @@ internal sealed class LibraryEventBuffer : IDisposable
             }
 
             // Reset debounce timer
-            this.debounceTimer.Change(
-                WatcherEventBuffer.MinDebounceDelay,
-                Timeout.InfiniteTimeSpan
-            );
+            var window = this.parentBuffer.GetDebounceWindow(this.librarySectionId);
+            this.debounceTimer.Change(window.Min, Timeout.InfiniteTimeSpan);
         }
     }
 
@@ -144,17 +143,12 @@ internal sealed class LibraryEventBuffer : IDisposable
             // Check if we should wait more (max delay not reached and recent activity)
             var timeSinceFirst = now - this.firstEventTime;
             var timeSinceLast = now - this.lastEventTime;
+            var window = this.parentBuffer.GetDebounceWindow(this.librarySectionId);
 
-            if (
-                timeSinceFirst < WatcherEventBuffer.MaxDebounceDelay
-                && timeSinceLast < WatcherEventBuffer.MinDebounceDelay
-            )
+            if (timeSinceFirst < window.Max && timeSinceLast < window.Min)
             {
                 // Recent activity, reset timer
-                this.debounceTimer.Change(
-                    WatcherEventBuffer.MinDebounceDelay,
-                    Timeout.InfiniteTimeSpan
-                );
+                this.debounceTimer.Change(window.Min, Timeout.InfiniteTimeSpan);
                 return;
             }
 

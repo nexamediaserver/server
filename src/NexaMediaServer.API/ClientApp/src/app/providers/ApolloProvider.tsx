@@ -1,6 +1,7 @@
 import {
   ApolloClient,
   ApolloLink,
+  type FieldFunctionOptions,
   HttpLink,
   InMemoryCache,
 } from '@apollo/client'
@@ -73,7 +74,10 @@ const mergeOffsetCollection = (
     return existing
   }
 
-  const incomingSkip = (args?.skip as number | undefined) ?? 0
+  const incomingSkip =
+    (args?.skip as number | undefined) ??
+    (args?.startIndex as number | undefined) ??
+    0
   const totalCount = incoming.totalCount ?? existing?.totalCount ?? 0
 
   // If no existing data, create array with null placeholders
@@ -120,8 +124,7 @@ const mergeOffsetCollection = (
 // Apollo by default filters out unreadable items; we need to keep nulls for sparse arrays
 const readOffsetCollection = (
   existing: OffsetCollection | undefined,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Apollo's FieldReadFunction uses any
-  options: { canRead: (value: any) => boolean },
+  options: FieldFunctionOptions,
 ): OffsetCollection | undefined => {
   if (!existing?.items) return existing
 
@@ -180,6 +183,7 @@ export function ApolloProvider({
       url,
     })
     // Only recreate on mount/unmount, not on token changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Needed to recreate the client when epoch changes
   }, [wsEpoch])
 
   // Dispose WS client only on unmount
@@ -306,12 +310,22 @@ export function ApolloProvider({
               },
             },
           },
+          PlaylistItemPayload: {
+            // Normalize playlist items by entry id
+            keyFields: ['itemEntryId'],
+          },
           Query: {
             fields: {
               librarySections: {
                 // Connection-style pagination with nodes array
                 keyArgs: false,
                 merge: mergeNodeConnections,
+              },
+              playlistChunk: {
+                // Offset-based pagination with items array keyed by playlist generator
+                keyArgs: ['playlistGeneratorId'],
+                merge: mergeOffsetCollection,
+                read: readOffsetCollection,
               },
             },
           },

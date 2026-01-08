@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Reflection;
+
 using FluentAssertions;
+
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Infrastructure.Services.Analysis;
 using NexaMediaServer.Infrastructure.Services.Images;
 using NexaMediaServer.Infrastructure.Services.Parts;
+
 using Xunit;
 
 namespace NexaMediaServer.Tests.Unit;
@@ -32,6 +35,23 @@ public class PartsRegistryTests
 
         providers.Should().HaveCount(1);
         providers[0].Should().BeOfType<TestImageProvider>();
+    }
+
+    /// <summary>
+    /// Ensures that image providers registered for Image base type are available for Photo.
+    /// </summary>
+    [Fact]
+    public void GetImageProvidersUsesImageBaseTypeForPhoto()
+    {
+        var registry = new PartsRegistry();
+        var provider = new TestImageImageProvider();
+        InvokeInternal(registry, "TryAddImageProvider", typeof(Image), provider);
+        registry.Freeze();
+
+        var providers = registry.GetImageProviders<Photo>();
+
+        providers.Should().HaveCount(1);
+        providers[0].Should().BeOfType<TestImageImageProvider>();
     }
 
     /// <summary>
@@ -98,6 +118,7 @@ public class PartsRegistryTests
     }
 
     private sealed class TestFileAnalyzer : IFileAnalyzer<Video>
+
     {
         private readonly string name = "Test Analyzer";
         private readonly int order = 5;
@@ -124,5 +145,21 @@ public class PartsRegistryTests
             this.supportsCalls++;
             return true;
         }
+    }
+
+    private sealed class TestImageImageProvider : IImageProvider<Image>
+    {
+        public string Name => "Test Image Provider";
+
+        public int Order => 10;
+
+        public Task ProvideAsync(
+            MediaItem item,
+            Image metadata,
+            IReadOnlyList<MediaPart> parts,
+            CancellationToken cancellationToken
+        ) => Task.CompletedTask;
+
+        public bool Supports(MediaItem item, Image metadata) => true;
     }
 }

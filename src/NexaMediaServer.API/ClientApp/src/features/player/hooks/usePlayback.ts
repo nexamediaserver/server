@@ -1,4 +1,4 @@
-import { useAtom } from 'jotai'
+import { useAtom, useSetAtom } from 'jotai'
 import { useCallback } from 'react'
 
 import type { Item } from '@/shared/api/graphql/graphql'
@@ -8,6 +8,8 @@ import { MetadataType } from '@/shared/api/graphql/graphql'
 import {
   isPlaybackActiveAtom,
   lastMaximizedPreferenceAtom,
+  persistedPlaybackSessionAtom,
+  type PlaybackOriginator,
   type PlaybackState,
   playbackStateAtom,
 } from '../store'
@@ -16,12 +18,21 @@ import {
  * Hook to control playback state
  */
 export interface StartPlaybackParams {
+  autoPlay?: boolean
   capabilityProfileVersion: number
   capabilityVersionMismatch?: boolean
-  originator: Pick<Item, 'id' | 'metadataType' | 'thumbUri' | 'title'>
+  originator: PlaybackOriginator
   playbackSessionId: string
   playbackUrl: string
   playlistGeneratorId: string
+  /** Current playlist index (0-based) */
+  playlistIndex?: number
+  /** Whether repeat mode is enabled */
+  playlistRepeat?: boolean
+  /** Whether shuffle mode is enabled */
+  playlistShuffle?: boolean
+  /** Total number of items in the playlist */
+  playlistTotalCount?: number
   /**
    * Server-provided duration in milliseconds.
    * Authoritative duration that should be preferred over browser-reported values.
@@ -37,9 +48,11 @@ export function usePlayback() {
   const [lastMaximizedPreference, setLastMaximizedPreference] = useAtom(
     lastMaximizedPreferenceAtom,
   )
+  const setPersistedPlaybackSession = useSetAtom(persistedPlaybackSessionAtom)
 
   const resolveMediaType = (
     type: Item['metadataType'],
+    streamPlanJson?: string,
   ): PlaybackState['mediaType'] => {
     if (type === MetadataType.Episode) {
       return 'episode'
@@ -53,17 +66,46 @@ export function usePlayback() {
       return 'music'
     }
 
+    if (type === MetadataType.Photo) {
+      return 'photo'
+    }
+
+    // Fallback: Check streamPlanJson for MediaType if metadataType doesn't resolve
+    if (streamPlanJson) {
+      try {
+        const plan = JSON.parse(streamPlanJson) as { MediaType?: string }
+        if (plan.MediaType === 'Photo') {
+          return 'photo'
+        }
+
+        if (plan.MediaType === 'Audio') {
+          return 'music'
+        }
+
+        if (plan.MediaType === 'Video') {
+          return 'movie' // Default video type
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
     return 'unknown'
   }
 
   const startPlayback = useCallback(
     ({
+      autoPlay = true,
       capabilityProfileVersion,
       capabilityVersionMismatch,
       originator,
       playbackSessionId,
       playbackUrl,
       playlistGeneratorId,
+      playlistIndex,
+      playlistRepeat,
+      playlistShuffle,
+      playlistTotalCount,
       serverDuration,
       streamPlanJson,
       trickplayUrl,
@@ -74,24 +116,34 @@ export function usePlayback() {
         capabilityVersionMismatch,
         // Set initial duration from server if available
         ...(serverDuration !== undefined && { duration: serverDuration }),
-        isPlaying: true,
+        isPlaying: autoPlay,
         // Restore the last maximized preference
         maximized: lastMaximizedPreference,
         mediaId: originator.id,
         mediaTitle: originator.title,
-        mediaType: resolveMediaType(originator.metadataType),
+        mediaType: resolveMediaType(originator.metadataType, streamPlanJson),
         originator,
         playbackSessionId,
         playbackUrl,
         playlistGeneratorId,
+        playlistIndex,
+        playlistRepeat,
+        playlistShuffle,
+        playlistTotalCount,
         serverDuration,
         // Reset stream offset for new playback
         streamOffset: 0,
         streamPlanJson,
         trickplayUrl,
       }))
+
+      setPersistedPlaybackSession({
+        currentItemId: originator.id,
+        playbackSessionId,
+        playlistGeneratorId,
+      })
     },
-    [setPlayback, lastMaximizedPreference],
+    [setPlayback, lastMaximizedPreference, setPersistedPlaybackSession],
   )
 
   const stopPlayback = useCallback(() => {
@@ -109,12 +161,18 @@ export function usePlayback() {
         playbackSessionId: undefined,
         playbackUrl: undefined,
         playlistGeneratorId: undefined,
+        playlistIndex: undefined,
+        playlistRepeat: undefined,
+        playlistShuffle: undefined,
+        playlistTotalCount: undefined,
         serverDuration: undefined,
         streamOffset: undefined,
         streamPlanJson: undefined,
         trickplayUrl: undefined,
       }
     })
+
+    setPersistedPlaybackSession(null)
   }, [setPlayback, setLastMaximizedPreference])
 
   const togglePlayPause = useCallback(() => {
@@ -163,11 +221,16 @@ export function usePlayback() {
   )
 
   const toggleMaximize = useCallback(() => {
-    setPlayback((prev) => ({
-      ...prev,
-      maximized: !prev.maximized,
-    }))
-  }, [setPlayback])
+    setPlayback((prev) => {
+      const newMaximized = !prev.maximized
+      // Persist the preference immediately
+      setLastMaximizedPreference(newMaximized)
+      return {
+        ...prev,
+        maximized: newMaximized,
+      }
+    })
+  }, [setPlayback, setLastMaximizedPreference])
 
   return {
     isActive,

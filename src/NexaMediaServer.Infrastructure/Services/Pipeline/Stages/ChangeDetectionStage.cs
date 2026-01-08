@@ -4,7 +4,9 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
+
 using Microsoft.EntityFrameworkCore;
+
 using NexaMediaServer.Core.Repositories;
 using NexaMediaServer.Core.Services.Pipeline;
 using NexaMediaServer.Infrastructure.Data;
@@ -19,8 +21,10 @@ namespace NexaMediaServer.Infrastructure.Services.Pipeline.Stages;
 public sealed class ChangeDetectionStage : IScanPipelineStage<ScanWorkItem, ScanWorkItem>
 {
     private readonly IDbContextFactory<MediaServerContext> dbContextFactory;
-    private readonly Dictionary<int, HashSet<string>> pathCache = new();
-    private readonly Dictionary<int, Dictionary<string, FileStats>> statsCache = new();
+
+    // Use a single combined cache to reduce memory overhead.
+    // The FileStats struct is small (16 bytes) and stored inline.
+    private readonly Dictionary<int, Dictionary<string, FileStats>> dataCache = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChangeDetectionStage"/> class.
@@ -40,8 +44,29 @@ public sealed class ChangeDetectionStage : IScanPipelineStage<ScanWorkItem, Scan
     /// </summary>
     /// <param name="libraryId">The library section identifier.</param>
     /// <returns>The cached path set, or null if not loaded.</returns>
-    public HashSet<string>? GetCachedPaths(int libraryId) =>
-        this.pathCache.TryGetValue(libraryId, out var paths) ? paths : null;
+    public HashSet<string>? GetCachedPaths(int libraryId)
+    {
+        if (!this.dataCache.TryGetValue(libraryId, out var cache))
+        {
+            return null;
+        }
+
+        // Return the keys as a HashSet for compatibility with existing deletion logic
+        return new HashSet<string>(cache.Keys, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Clears the cached paths and stats for a specific library to free memory.
+    /// Call this after a scan completes to prevent unbounded cache growth.
+    /// </summary>
+    /// <param name="libraryId">The library section identifier.</param>
+    public void ClearCache(int libraryId)
+    {
+        if (this.dataCache.Remove(libraryId, out var cache))
+        {
+            cache.Clear(); // Help GC by clearing the dictionary
+        }
+    }
 
     /// <inheritdoc />
     public async IAsyncEnumerable<ScanWorkItem> ExecuteAsync(
@@ -51,10 +76,7 @@ public sealed class ChangeDetectionStage : IScanPipelineStage<ScanWorkItem, Scan
     )
     {
         var libraryId = context.LibrarySection.Id;
-        var (existingPaths, existingStats) = await this.LoadExistingFileDataAsync(
-            libraryId,
-            cancellationToken
-        );
+        var existingData = await this.LoadExistingFileDataAsync(libraryId, cancellationToken);
 
         await foreach (var item in input.WithCancellation(cancellationToken))
         {
@@ -69,8 +91,8 @@ public sealed class ChangeDetectionStage : IScanPipelineStage<ScanWorkItem, Scan
 
             var path = item.File.Path;
 
-            // Check if path exists in database
-            if (!existingPaths.Contains(path))
+            // Check if path exists in database and get stats in one lookup
+            if (!existingData.TryGetValue(path, out var stats))
             {
                 // New file - needs processing
                 yield return item;
@@ -78,19 +100,11 @@ public sealed class ChangeDetectionStage : IScanPipelineStage<ScanWorkItem, Scan
             }
 
             // Check if file has changed based on size and modification time
-            if (existingStats.TryGetValue(path, out var stats))
+            var isUnchanged = IsFileUnchanged(item.File, stats);
+            yield return item with
             {
-                var isUnchanged = IsFileUnchanged(item.File, stats);
-                yield return item with
-                {
-                    IsUnchanged = isUnchanged,
-                };
-            }
-            else
-            {
-                // Path exists but no stats - treat as potentially changed
-                yield return item;
-            }
+                IsUnchanged = isUnchanged,
+            };
         }
     }
 
@@ -122,26 +136,24 @@ public sealed class ChangeDetectionStage : IScanPipelineStage<ScanWorkItem, Scan
         return timeDiff < 2.0;
     }
 
-    private async Task<(
-        HashSet<string> Paths,
-        Dictionary<string, FileStats> Stats
-    )> LoadExistingFileDataAsync(int libraryId, CancellationToken cancellationToken)
+    private async Task<Dictionary<string, FileStats>> LoadExistingFileDataAsync(
+        int libraryId,
+        CancellationToken cancellationToken
+    )
     {
         // Return cached data if available
-        if (
-            this.pathCache.TryGetValue(libraryId, out var cachedPaths)
-            && this.statsCache.TryGetValue(libraryId, out var cachedStats)
-        )
+        if (this.dataCache.TryGetValue(libraryId, out var cachedData))
         {
-            return (cachedPaths, cachedStats);
+            return cachedData;
         }
 
-        // Load paths and stats from database
+        // Load paths and stats from database using streaming to reduce peak memory
         await using var context = await this
             .dbContextFactory.CreateDbContextAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var fileData = await context
+        // Pre-size dictionary based on estimated count to reduce reallocations
+        var estimatedCount = await context
             .MediaParts.AsNoTracking()
             .Join(context.MediaItems, mp => mp.MediaItemId, mi => mi.Id, (mp, mi) => new { mp, mi })
             .Join(
@@ -151,26 +163,33 @@ public sealed class ChangeDetectionStage : IScanPipelineStage<ScanWorkItem, Scan
                 (x, m) => new { x.mp, m.LibrarySectionId }
             )
             .Where(x => x.LibrarySectionId == libraryId)
-            .Select(x => new
-            {
-                x.mp.File,
-                x.mp.Size,
-                x.mp.ModifiedAt,
-            })
-            .ToListAsync(cancellationToken)
+            .CountAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var paths = fileData.Select(f => f.File).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var stats = fileData.ToDictionary(
-            f => f.File,
-            f => new FileStats(f.Size, f.ModifiedAt),
-            StringComparer.OrdinalIgnoreCase
-        );
+        var data = new Dictionary<string, FileStats>(estimatedCount, StringComparer.OrdinalIgnoreCase);
 
-        this.pathCache[libraryId] = paths;
-        this.statsCache[libraryId] = stats;
+        // Stream results to avoid loading all data into an intermediate list
+        await foreach (
+            var item in context
+                .MediaParts.AsNoTracking()
+                .Join(context.MediaItems, mp => mp.MediaItemId, mi => mi.Id, (mp, mi) => new { mp, mi })
+                .Join(
+                    context.MetadataItems,
+                    x => x.mi.MetadataItemId,
+                    m => m.Id,
+                    (x, m) => new { x.mp, m.LibrarySectionId }
+                )
+                .Where(x => x.LibrarySectionId == libraryId)
+                .Select(x => new { x.mp.File, x.mp.Size, x.mp.ModifiedAt })
+                .AsAsyncEnumerable()
+                .WithCancellation(cancellationToken)
+        )
+        {
+            data.TryAdd(item.File, new FileStats(item.Size, item.ModifiedAt));
+        }
 
-        return (paths, stats);
+        this.dataCache[libraryId] = data;
+        return data;
     }
 
     private readonly record struct FileStats(long? Size, DateTime? ModifiedAt);

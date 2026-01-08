@@ -1,23 +1,4 @@
-import type { DragEndEvent } from '@dnd-kit/core'
-
-import {
-  closestCenter,
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import { GripVertical } from 'lucide-react'
-import { type ReactElement, useCallback } from 'react'
+import { type ReactElement, useMemo } from 'react'
 import IconCloud from '~icons/material-symbols/cloud'
 import IconDescription from '~icons/material-symbols/description'
 import IconFolder from '~icons/material-symbols/folder'
@@ -27,7 +8,7 @@ import {
   MetadataAgentCategory,
   type MetadataAgentInfo,
 } from '@/shared/api/graphql/graphql'
-import { Switch } from '@/shared/components/ui/switch'
+import { SortableList } from '@/shared/components/SortableList'
 import { cn } from '@/shared/lib/utils'
 
 interface AgentItemState {
@@ -86,55 +67,14 @@ const getCategoryLabel = (category: MetadataAgentCategory): string => {
   }
 }
 
-const SortableAgentItem = ({
-  item,
+export function SortableAgentList({
+  agents,
+  onOrderChange,
   onToggle,
-}: Readonly<{
-  item: AgentItemState
-  onToggle: (name: string, enabled: boolean) => void
-}>) => {
-  const {
-    attributes,
-    isDragging,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: item.agent.name })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
-
-  return (
-    <div
-      className={cn(
-        `
-          flex items-center gap-3 rounded-lg border border-stone-700/70
-          bg-stone-800 p-3 transition-colors
-        `,
-        isDragging && 'z-50 border-primary/60 shadow-lg',
-        !item.enabled && 'opacity-50',
-      )}
-      ref={setNodeRef}
-      style={style}
-    >
-      <button
-        aria-label="Drag to reorder"
-        className={`
-          cursor-grab touch-none text-stone-500 transition-colors
-          hover:text-stone-300
-          active:cursor-grabbing
-        `}
-        type="button"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="size-5" />
-      </button>
-
-      <div className="flex flex-1 items-center gap-3">
+}: Readonly<SortableAgentListProps>) {
+  const renderAgent = useMemo(
+    () => (item: AgentItemState) => (
+      <div className="flex items-center gap-3">
         <span
           className={cn(
             `
@@ -149,69 +89,28 @@ const SortableAgentItem = ({
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">{item.agent.displayName}</p>
-          <p className="truncate text-xs text-stone-400">
+          <p className="truncate text-xs text-muted-foreground">
             {item.agent.description}
           </p>
         </div>
       </div>
-
-      <Switch
-        aria-label={`Enable ${item.agent.displayName}`}
-        checked={item.enabled}
-        onCheckedChange={(checked) => {
-          onToggle(item.agent.name, checked)
-        }}
-      />
-    </div>
+    ),
+    [],
   )
-}
-
-export function SortableAgentList({
-  agents,
-  onOrderChange,
-  onToggle,
-}: Readonly<SortableAgentListProps>) {
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  )
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event
-
-      if (over && active.id !== over.id) {
-        const oldIndex = agents.findIndex((a) => a.agent.name === active.id)
-        const newIndex = agents.findIndex((a) => a.agent.name === over.id)
-        const reordered = arrayMove(agents, oldIndex, newIndex)
-        onOrderChange(reordered.map((a) => a.agent.name))
-      }
-    },
-    [agents, onOrderChange],
-  )
-
-  const agentIds = agents.map((a) => a.agent.name)
 
   return (
-    <DndContext
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-      sensors={sensors}
-    >
-      <SortableContext items={agentIds} strategy={verticalListSortingStrategy}>
-        <div className="space-y-2">
-          {agents.map((item) => (
-            <SortableAgentItem
-              item={item}
-              key={item.agent.name}
-              onToggle={onToggle}
-            />
-          ))}
-        </div>
-      </SortableContext>
-    </DndContext>
+    <SortableList
+      getEnabled={(item) => item.enabled}
+      getId={(item) => item.agent.name}
+      items={agents}
+      onOrderChange={(newOrder) => {
+        onOrderChange(newOrder.map((item) => item.agent.name))
+      }}
+      onToggle={(item, enabled) => {
+        onToggle(item.agent.name, enabled)
+      }}
+      renderItem={renderAgent}
+    />
   )
 }
 

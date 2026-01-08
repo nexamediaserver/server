@@ -23,6 +23,10 @@ namespace NexaMediaServer.Core.DTOs.Hubs;
 /// <param name="LogoHash">The logo blurhash.</param>
 /// <param name="ContentRating">The content rating (e.g., PG-13, TV-MA).</param>
 /// <param name="Summary">The item summary/description.</param>
+/// <param name="Index">The index of the item (track number, episode number, etc.).</param>
+/// <param name="ParentId">The UUID of the parent item.</param>
+/// <param name="ParentTitle">The title of the parent item.</param>
+/// <param name="ParentIndex">The index of the parent item (disc number, season number, etc.).</param>
 public sealed record HubItem(
     Guid Id,
     string Title,
@@ -38,5 +42,9 @@ public sealed record HubItem(
     string? LogoUri = null,
     string? LogoHash = null,
     string? ContentRating = null,
-    string? Summary = null
+    string? Summary = null,
+    int? Index = null,
+    Guid? ParentId = null,
+    string? ParentTitle = null,
+    int? ParentIndex = null
 );

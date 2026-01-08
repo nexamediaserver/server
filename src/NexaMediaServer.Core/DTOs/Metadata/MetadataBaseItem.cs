@@ -152,4 +152,33 @@ public record class MetadataBaseItem
     /// </summary>
     public IList<PendingMetadataRelation> PendingRelations { get; } =
         new List<PendingMetadataRelation>();
+
+    /// <summary>
+    /// Gets or sets the collection of extra fields for storing type-specific metadata.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This dictionary stores arbitrary key-value data that is persisted to
+    /// <see cref="MetadataItem.ExtraFields"/>. Keys should use values from
+    /// <see cref="Constants.ExtraFieldKeys"/> for consistency.
+    /// </para>
+    /// <para>
+    /// Examples include music-specific fields like release type, media format,
+    /// catalog number, and classical music work/movement information.
+    /// </para>
+    /// </remarks>
+    public Dictionary<string, object?> ExtraFields { get; set; } = [];
+
+    /// <summary>
+    /// Gets the collection of external identifiers to register for this item.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This collection holds external IDs discovered during metadata extraction that should be
+    /// persisted as <see cref="Entities.ExternalIdentifier"/> entities. The tuple contains
+    /// the provider name (use values from <see cref="Constants.ExternalIdProviders"/>) and the ID value.
+    /// </para>
+    /// </remarks>
+    public IList<(string Provider, string Id)> PendingExternalIds { get; } =
+        new List<(string Provider, string Id)>();
 }

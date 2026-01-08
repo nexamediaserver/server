@@ -7,7 +7,7 @@ import 'swiper/css'
 import MsChevronLeft from '~icons/material-symbols/chevron-left-rounded'
 import MsChevronRight from '~icons/material-symbols/chevron-right-rounded'
 
-import type { Role } from '@/shared/api/graphql/graphql'
+import type { Item } from '@/shared/api/graphql/graphql'
 
 import { getItemCardWidthPx } from '@/features/content-sources/lib/itemCardSizing'
 import { Button } from '@/shared/components/ui/button'
@@ -22,7 +22,7 @@ type RoleSwiperProps = Readonly<{
   className?: string
   heading?: string
   librarySectionId: string
-  roles: Pick<Role, 'name' | 'personId' | 'relationship' | 'thumbUrl'>[]
+  roles: Pick<Item, 'context' | 'id' | 'thumbHash' | 'thumbUri' | 'title'>[]
   slidesPerView?: SwiperOptions['slidesPerView']
   spaceBetween?: number
 }>
@@ -91,10 +91,7 @@ export function RoleSlider({
         spaceBetween={breakpoints ? undefined : spaceBetween}
       >
         {roles.map((role) => (
-          <SwiperSlide
-            key={role.personId}
-            style={{ width: resolvedSlideWidth }}
-          >
+          <SwiperSlide key={role.id} style={{ width: resolvedSlideWidth }}>
             <div className="pr-1 pb-2">
               <RoleCard
                 cardWidthPx={baseCardWidthPx}

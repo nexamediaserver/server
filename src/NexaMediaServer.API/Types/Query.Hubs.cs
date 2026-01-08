@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Security.Claims;
+
 using HotChocolate.Authorization;
+
 using NexaMediaServer.API.Types.Hubs;
 using NexaMediaServer.Core.DTOs.Hubs;
 using NexaMediaServer.Core.Enums;
@@ -183,11 +185,9 @@ public static partial class Query
             LogoUri = item.LogoUri,
             LogoHash = item.LogoHash,
             ThemeUrl = null,
-            ParentId = Guid.Empty,
-            GrandparentId = Guid.Empty,
-            ParentTitle = string.Empty,
+            ParentId = item.ParentId,
             LibrarySectionUuid = item.LibrarySectionId,
-            Index = 0,
+            Index = item.Index ?? 0,
             Length = item.Duration ?? 0,
             LeafCount = 0,
             ChildCount = 0,
@@ -216,9 +216,7 @@ public static partial class Query
             LogoUri = null,
             LogoHash = null,
             ThemeUrl = null,
-            ParentId = Guid.Empty,
-            GrandparentId = Guid.Empty,
-            ParentTitle = string.Empty,
+            ParentId = null,
             LibrarySectionUuid = Guid.Empty,
             Index = 0,
             Length = 0,

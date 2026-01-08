@@ -17,7 +17,7 @@ import {
   ITEM_CARD_MAX_WIDTH_PX,
 } from '@/features/content-sources/lib/itemCardSizing'
 import { PAGE_SIZE } from '@/features/content-sources/queries'
-import { type Item, MetadataType } from '@/shared/api/graphql/graphql'
+import { MetadataType } from '@/shared/api/graphql/graphql'
 import { isUnloadedItem } from '@/shared/lib/sparseArray'
 import { itemCardWidthAtom } from '@/store'
 
@@ -30,43 +30,69 @@ const isLoadedItem = (
   return item !== null && item !== undefined
 }
 
+export type HeightMode = 'auto' | 'fit' | 'full'
+
 export interface ItemGridHandle {
   scrollToIndex: (itemIndex: number) => void
   scrollToTop: () => void
 }
 
-export type ItemGridItem = Pick<
-  Item,
-  | 'id'
-  | 'length'
-  | 'metadataType'
-  | 'thumbUri'
-  | 'title'
-  | 'viewOffset'
-  | 'year'
->
+export interface ItemGridItem {
+  id: string
+  isPromoted: boolean
+  length: number
+  librarySectionId: string
+  metadataType: MetadataType
+  persons: {
+    id: string
+    metadataType: MetadataType
+    title: string
+  }[]
+  primaryPerson?: null | {
+    id: string
+    metadataType: MetadataType
+    title: string
+  }
+  thumbHash?: null | string
+  thumbUri?: null | string
+  title: string
+  viewCount: number
+  viewOffset: number
+  year: number
+}
 
 export interface ItemGridProps {
+  enableScroll?: boolean // Enable vertical scrolling (default: true)
   gap?: number // px
   hasMore: boolean
+  heightMode?: HeightMode // Height behavior: 'full' (default), 'auto', or 'fit'
   isFetching?: boolean
   items: (ItemGridItem | null | undefined)[]
   librarySectionId: string
   onRequestRange?: (startIndex: number) => void // Request data starting at index
+  padding?: Padding // Container padding in pixels (default: { x: 32, y: 32 })
   prefetchRows?: number // how many rows ahead to trigger prefetch
   tileWidth?: number // px width when slider is at max token (52)
   totalCount: number
 }
 
+export interface Padding {
+  x: number
+  y: number
+}
+
 export const ItemGrid = memo(
   forwardRef<ItemGridHandle, ItemGridProps>(function ItemGrid(
     {
+      enableScroll = true,
       gap = 24,
       hasMore,
+      heightMode = 'full',
       isFetching = false,
       items,
       librarySectionId,
       onRequestRange,
+      padding = { x: 32, y: 32 },
       prefetchRows = 3,
       tileWidth = ITEM_CARD_MAX_WIDTH_PX,
       totalCount,
@@ -112,11 +138,11 @@ export const ItemGrid = memo(
     // Calculate columns based on measured container width, window size, and tile width
     const columns = useMemo(() => {
       const width = containerWidth ?? windowSize.width ?? globalThis.innerWidth
-      const paddingX = 64 // px-8 left and right on the grid row container
+      const paddingX = padding.x * 2 // left and right padding from props
       const innerWidth = Math.max(0, width - paddingX)
       const per = cardWidthPx
       return Math.max(1, Math.floor((innerWidth + gap) / (per + gap)))
-    }, [containerWidth, windowSize.width, cardWidthPx, gap])
+    }, [containerWidth, windowSize.width, cardWidthPx, gap, padding.x])
 
     // Keep a ref to columns for use in imperative handle
     const columnsRef = useRef(columns)
@@ -230,7 +256,7 @@ export const ItemGrid = memo(
 
     // Stable ref callback for row measurement
     const rowRefCallback = useCallback(
-      () => (el: HTMLDivElement | null) => {
+      (el: HTMLDivElement | null) => {
         // Let virtualizer measure the element
         rowVirtualizer.measureElement(el)
       },
@@ -246,12 +272,28 @@ export const ItemGrid = memo(
       checkDataNeeds()
     }, [checkDataNeeds])
 
+    const heightClass =
+      heightMode === 'full'
+        ? 'h-full'
+        : heightMode === 'fit'
+          ? 'h-fit'
+          : 'h-auto'
+    const overflowClass = enableScroll ? 'overflow-y-auto' : 'overflow-y-hidden'
+
     return (
       <div
-        className="h-full w-full overflow-x-hidden overflow-y-auto py-8"
+        className={`
+          ${heightClass}
+          w-full overflow-x-hidden
+          ${overflowClass}
+        `}
         data-scroll-restoration-id={scrollRestorationId}
         onScroll={handleScroll}
         ref={parentRef}
+        style={{
+          paddingBottom: `${padding.y.toString()}px`,
+          paddingTop: `${padding.y.toString()}px`,
+        }}
       >
         <div
           className="relative mx-auto"
@@ -263,13 +305,15 @@ export const ItemGrid = memo(
           {virtualRows.map((virtualRow) => {
             return (
               <div
-                className={`absolute top-0 left-0 grid w-full px-8`}
+                className={`absolute top-0 left-0 grid w-full`}
                 data-index={virtualRow.key}
                 key={virtualRow.key}
-                ref={rowRefCallback(virtualRow.index)}
+                ref={rowRefCallback}
                 style={{
                   gap: `${gap.toString()}px`,
                   gridTemplateColumns: `repeat(${columns.toString()}, ${cardWidthPx.toString()}px)`,
+                  paddingLeft: `${padding.x.toString()}px`,
+                  paddingRight: `${padding.x.toString()}px`,
                   transform: `translateY(${virtualRow.start.toString()}px)`,
                   willChange: 'transform',
                 }}
@@ -306,17 +350,22 @@ export const ItemGrid = memo(
                             isScrolling={rowVirtualizer.isScrolling}
                             item={{
                               id: cardKey,
+                              isPromoted: false,
                               length: 0,
+                              librarySectionId: librarySectionId,
                               metadataType:
                                 sampleItem?.metadataType ??
                                 MetadataType.Unknown,
+                              persons: [],
+                              primaryPerson: null,
+                              thumbHash: null,
                               thumbUri: undefined,
                               title: '',
+                              viewCount: 0,
                               viewOffset: 0,
                               year: 0,
                             }}
                             key={cardKey}
-                            librarySectionId={librarySectionId}
                           />
                         )
                       }
@@ -330,7 +379,6 @@ export const ItemGrid = memo(
                         isScrolling={rowVirtualizer.isScrolling}
                         item={itemData}
                         key={cardKey}
-                        librarySectionId={librarySectionId}
                       />
                     )
                   },

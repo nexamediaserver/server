@@ -20,12 +20,16 @@ public interface ICreditService
     /// <param name="owner">The metadata item that owns these credits.</param>
     /// <param name="people">Person credits to upsert (cast, directors, writers, etc.).</param>
     /// <param name="groups">Group credits to upsert (studios, networks, bands, etc.).</param>
+    /// <param name="overrideFields">Optional collection of field names to force update, bypassing any locks.
+    /// Use <see cref="Constants.MetadataFieldNames.Cast"/>, <see cref="Constants.MetadataFieldNames.Crew"/>,
+    /// or <see cref="Constants.MetadataFieldNames.Credits"/> to override credit locks.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns><see langword="true"/> if any changes were persisted; otherwise <see langword="false"/>.</returns>
     Task<bool> UpsertCreditsAsync(
         MetadataItem owner,
         IEnumerable<PersonCredit>? people,
         IEnumerable<GroupCredit>? groups,
+        IEnumerable<string>? overrideFields = null,
         CancellationToken cancellationToken = default
     );
 }

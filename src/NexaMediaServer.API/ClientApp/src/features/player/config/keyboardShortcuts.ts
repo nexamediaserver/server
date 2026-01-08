@@ -24,6 +24,7 @@ export function createPlayerShortcuts(
     rewind10Seconds: () => void
     skipBack10Minutes: () => void
     togglePlayPause: () => void
+    toggleStats: () => void
   },
   conditions: {
     isPlayerMaximized: () => boolean
@@ -69,6 +70,16 @@ export function createPlayerShortcuts(
       handler: handlers.jumpForward10Minutes,
       key: 'ArrowUp',
     },
+
+    // Toggle player stats - works only when player is maximized
+    // Note: Also available via the player menu button for better accessibility
+    {
+      condition: conditions.isPlayerMaximized,
+      description: 'Toggle player stats (when player is maximized)',
+      handler: handlers.toggleStats,
+      key: 's',
+      modifiers: { shift: true },
+    },
   ]
 }
 
@@ -85,5 +96,6 @@ export const PLAYER_SHORTCUTS_DOCS = {
     { description: 'Forward 10 seconds', keys: ['→'] },
     { description: 'Skip back 10 minutes', keys: ['↓'] },
     { description: 'Jump forward 10 minutes', keys: ['↑'] },
+    { description: 'Toggle player stats', keys: ['Shift+S'] },
   ],
 } as const

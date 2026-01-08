@@ -1,4 +1,4 @@
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { useCallback, useEffect } from 'react'
 
 import {
@@ -17,6 +17,7 @@ import {
   authRefreshTokenAtom,
   authStatusAtom,
   authUserAtom,
+  isAdminAtom,
 } from '../store'
 
 export function useAuth() {
@@ -43,7 +44,8 @@ export function useAuth() {
         const email = info.email
         const username = email
         const id = email
-        setUser({ email, id, username })
+        const roles = info.roles.length > 0 ? info.roles : undefined
+        setUser({ email, id, roles, username })
         setStatus('authenticated')
       })
       .catch(() => {
@@ -83,7 +85,8 @@ export function useAuth() {
         const email = info.email
         const username = email
         const id = email
-        setUser({ email, id, username })
+        const roles = info.roles.length > 0 ? info.roles : undefined
+        setUser({ email, id, roles, username })
         setStatus('authenticated')
       } catch (error: unknown) {
         handleErrorStandalone(error, { context: 'useAuth.login' })
@@ -126,7 +129,8 @@ export function useAuth() {
         const email = info.email
         const username = email
         const id = email
-        setUser({ email, id, username })
+        const roles = info.roles.length > 0 ? info.roles : undefined
+        setUser({ email, id, roles, username })
         setAccessToken(null)
         setRefreshToken(null)
         setExpiresAt(null)
@@ -154,4 +158,9 @@ export function useAuth() {
     status,
     user,
   }
+}
+
+/** Hook to check if the current user is an administrator */
+export function useIsAdmin(): boolean {
+  return useAtomValue(isAdminAtom)
 }

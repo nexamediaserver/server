@@ -94,7 +94,7 @@ public sealed class HubDefinitionProvider : IHubDefinitionProvider
         new(
             HubType.TopByArtist,
             "Top Artists",
-            MetadataType.AlbumRelease,
+            MetadataType.Person,
             HubContext.LibraryDiscover,
             3
         ),
@@ -145,23 +145,88 @@ public sealed class HubDefinitionProvider : IHubDefinitionProvider
         new(HubType.Cast, "Guest Stars", MetadataType.Person, HubContext.ItemDetail, 1),
     ];
 
-    // Album detail page hubs
-    private static readonly HubDefinition[] AlbumDetailHubs =
+    // Album detail page hubs (for AlbumReleaseGroup with multiple releases)
+    private static readonly HubDefinition[] AlbumReleaseGroupDetailHubs =
     [
-        new(HubType.Cast, "Artists", MetadataType.Person, HubContext.ItemDetail, 1),
+        new(
+            HubType.AlbumReleases,
+            "Releases",
+            MetadataType.AlbumRelease,
+            HubContext.ItemDetail,
+            1
+        ),
+        new(HubType.Cast, "Artists", MetadataType.Person, HubContext.ItemDetail, 2),
         new(
             HubType.MoreFromArtist,
             "More from Artist",
-            MetadataType.AlbumRelease,
+            MetadataType.AlbumReleaseGroup,
             HubContext.ItemDetail,
-            2
+            3
         ),
         new(
             HubType.SimilarItems,
             "Similar Albums",
-            MetadataType.AlbumRelease,
+            MetadataType.AlbumReleaseGroup,
+            HubContext.ItemDetail,
+            4
+        ),
+    ];
+
+    // Album detail page hubs (for AlbumReleaseGroup with single release - show tracklist directly)
+    private static readonly HubDefinition[] AlbumReleaseGroupSingleReleaseDetailHubs =
+    [
+        new(
+            HubType.Tracks,
+            "Tracks",
+            MetadataType.Track,
+            HubContext.ItemDetail,
+            1,
+            null,
+            HubWidgetType.Tracklist
+        ),
+        new(HubType.Cast, "Artists", MetadataType.Person, HubContext.ItemDetail, 2),
+        new(
+            HubType.MoreFromArtist,
+            "More from Artist",
+            MetadataType.AlbumReleaseGroup,
             HubContext.ItemDetail,
             3
+        ),
+        new(
+            HubType.SimilarItems,
+            "Similar Albums",
+            MetadataType.AlbumReleaseGroup,
+            HubContext.ItemDetail,
+            4
+        ),
+    ];
+
+    // Album release detail page hubs (always show tracklist)
+    private static readonly HubDefinition[] AlbumReleaseDetailHubs =
+    [
+        new(
+            HubType.Tracks,
+            "Tracks",
+            MetadataType.Track,
+            HubContext.ItemDetail,
+            1,
+            null,
+            HubWidgetType.Tracklist
+        ),
+        new(HubType.Cast, "Artists", MetadataType.Person, HubContext.ItemDetail, 2),
+        new(
+            HubType.MoreFromArtist,
+            "More from Artist",
+            MetadataType.AlbumReleaseGroup,
+            HubContext.ItemDetail,
+            3
+        ),
+        new(
+            HubType.SimilarItems,
+            "Similar Albums",
+            MetadataType.AlbumReleaseGroup,
+            HubContext.ItemDetail,
+            4
         ),
     ];
 
@@ -174,6 +239,34 @@ public sealed class HubDefinitionProvider : IHubDefinitionProvider
             MetadataType.Unknown,
             HubContext.LibraryDiscover,
             1
+        ),
+    ];
+
+    // PhotoAlbum detail page hubs
+    private static readonly HubDefinition[] PhotoAlbumDetailHubs =
+    [
+        new(
+            HubType.Photos,
+            "Photos",
+            MetadataType.Photo,
+            HubContext.ItemDetail,
+            1,
+            null,
+            HubWidgetType.Grid
+        ),
+    ];
+
+    // PictureSet detail page hubs
+    private static readonly HubDefinition[] PictureSetDetailHubs =
+    [
+        new(
+            HubType.Photos,
+            "Pictures",
+            MetadataType.Picture,
+            HubContext.ItemDetail,
+            1,
+            null,
+            HubWidgetType.Grid
         ),
     ];
 
@@ -254,7 +347,7 @@ public sealed class HubDefinitionProvider : IHubDefinitionProvider
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<HubDefinition> GetItemDetailHubs(MetadataType metadataType)
+    public IReadOnlyList<HubDefinition> GetItemDetailHubs(MetadataType metadataType, int? childCount = null)
     {
         return metadataType switch
         {
@@ -262,8 +355,13 @@ public sealed class HubDefinitionProvider : IHubDefinitionProvider
             MetadataType.Show => ShowDetailHubs,
             MetadataType.Season => EmptyHubs, // Seasons don't typically have detail hubs
             MetadataType.Episode => EpisodeDetailHubs,
-            MetadataType.AlbumRelease or MetadataType.AlbumReleaseGroup => AlbumDetailHubs,
+            MetadataType.AlbumReleaseGroup => childCount == 1
+                ? AlbumReleaseGroupSingleReleaseDetailHubs
+                : AlbumReleaseGroupDetailHubs,
+            MetadataType.AlbumRelease => AlbumReleaseDetailHubs,
             MetadataType.Track or MetadataType.Recording => EmptyHubs,
+            MetadataType.PhotoAlbum => PhotoAlbumDetailHubs,
+            MetadataType.PictureSet => PictureSetDetailHubs,
             _ => EmptyHubs,
         };
     }

@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Diagnostics;
+
 using Hangfire;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Common;
 using NexaMediaServer.Core.DTOs;
 using NexaMediaServer.Core.DTOs.Metadata;
@@ -599,6 +602,12 @@ public sealed partial class ImageOrchestrationService : IImageOrchestrationServi
             Track track => this.CreateImageProviderAdapters(track),
             Recording recording => this.CreateImageProviderAdapters(recording),
             AudioWork work => this.CreateImageProviderAdapters(work),
+            Photo photo => this.CreateImageProviderAdapters(photo),
+            Picture picture => this.CreateImageProviderAdapters(picture),
+
+            // Collection types use MetadataCollectionItem base for image providers
+            MetadataCollectionItem collection => this.CreateImageProviderAdapters(collection),
+
             _ => Array.Empty<ImageProviderAdapter>(),
         };
     }

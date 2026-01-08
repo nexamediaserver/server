@@ -1,11 +1,13 @@
 import { useQuery } from '@apollo/client/react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Suspense } from 'react'
+import { useAtom } from 'jotai'
+import { Suspense, useEffect } from 'react'
 
 import { librarySectionsQueryDocument } from '@/app/graphql/content-source'
 import { AddContentSourceDialog } from '@/features/content-sources/components/AddContentSourceDialog'
 import { ContentTypeIcon } from '@/features/content-sources/components/ContentTypeIcon'
 import { LibraryActionsMenu } from '@/features/content-sources/components/LibraryActionsMenu'
+import { libraryViewModesAtom } from '@/features/content-sources/store/atoms'
 import {
   SidebarGroupLabel,
   SidebarMenu,
@@ -20,6 +22,30 @@ export function ContentSourcesSection() {
   const { data } = useQuery(librarySectionsQueryDocument, {
     variables: { first: 50 },
   })
+
+  const [libraryViewModes, setLibraryViewModes] = useAtom(libraryViewModesAtom)
+
+  // Clean up view mode preferences for deleted libraries
+  useEffect(() => {
+    const nodes = data?.librarySections?.nodes
+    if (!nodes || nodes.length === 0) {
+      return
+    }
+
+    const validIds = new Set(nodes.map((node) => node.id))
+    const storedIds = Object.keys(libraryViewModes)
+    const orphanedIds = storedIds.filter((id) => !validIds.has(id))
+
+    if (orphanedIds.length > 0) {
+      setLibraryViewModes((prev) => {
+        const updated = { ...prev }
+        for (const id of orphanedIds) {
+          delete updated[id]
+        }
+        return updated
+      })
+    }
+  }, [data?.librarySections?.nodes, libraryViewModes, setLibraryViewModes])
 
   return (
     <Suspense>

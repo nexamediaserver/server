@@ -2,11 +2,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Linq;
+
 using HotChocolate.Authorization;
+
 using Microsoft.EntityFrameworkCore;
+
 using NexaMediaServer.API.DataLoaders;
+using NexaMediaServer.Core.DTOs;
 using NexaMediaServer.Core.Enums;
 using NexaMediaServer.Infrastructure.Data;
+
 using CoreEntities = NexaMediaServer.Core.Entities;
 
 namespace NexaMediaServer.API.Types;
@@ -78,10 +83,55 @@ public sealed class LibrarySection
     }
 
     /// <summary>
+    /// Gets the available root item types for browsing this library section.
+    /// </summary>
+    /// <remarks>
+    /// The available types depend on the library type. For example, a Music library
+    /// supports browsing by Albums or Artists, while a Movies library only has Movies.
+    /// If only one option is available, the UI should hide the type selector.
+    /// </remarks>
+    /// <returns>A list of browsable item type options.</returns>
+    [GraphQLName("availableRootItemTypes")]
+    public List<BrowsableItemType> GetAvailableRootItemTypes()
+    {
+        return BrowseOptionsProvider
+            .GetAvailableRootItemTypes(this.Type)
+            .Select(opt => new BrowsableItemType
+            {
+                DisplayName = opt.DisplayName,
+                MetadataTypes = opt.MetadataTypes.ToList(),
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Gets the available sort fields for browsing this library section.
+    /// </summary>
+    /// <remarks>
+    /// The available sort fields depend on the library type. Some fields require
+    /// user-specific data (e.g., Progress, Date Viewed) which may affect performance.
+    /// When sorting by fields other than Title, the letter index (jump bar) should be hidden.
+    /// </remarks>
+    /// <returns>A list of sort field options.</returns>
+    [GraphQLName("availableSortFields")]
+    public List<SortField> GetAvailableSortFields()
+    {
+        return BrowseOptionsProvider
+            .GetAvailableSortFields(this.Type)
+            .Select(opt => new SortField
+            {
+                Key = opt.Key,
+                DisplayName = opt.DisplayName,
+                RequiresUserData = opt.RequiresUserDataJoin,
+            })
+            .ToList();
+    }
+
+    /// <summary>
     /// Gets an offset-paginated list of top-level (root) metadata items (those without a parent) for this library section.
     /// Uses skip/take parameters to allow arbitrary position jumping for jump bar navigation.
     /// </summary>
-    /// <param name="metadataType">Optional metadata type constraint.</param>
+    /// <param name="metadataTypes">Metadata types to include. Items matching any of these types will be returned.</param>
     /// <param name="dataLoader">The batched loader for child metadata.</param>
     /// <param name="cancellationToken">Token used to cancel the resolver.</param>
     /// <returns>An in-memory queryable used by HotChocolate to create a collection segment.</returns>
@@ -92,14 +142,14 @@ public sealed class LibrarySection
     [UseFiltering]
     [UseSorting(Type = typeof(MetadataItemSortType))]
     public async Task<IQueryable<MetadataItem>> ChildrenAsync(
-        MetadataType metadataType,
+        MetadataType[] metadataTypes,
         IRootMetadataItemsBySectionIdDataLoader dataLoader,
         CancellationToken cancellationToken
     )
     {
         var items =
             await dataLoader.LoadAsync(
-                new RootMetadataItemsRequest(this.Id, metadataType),
+                new RootMetadataItemsRequest(this.Id, metadataTypes),
                 cancellationToken
             ) ?? Array.Empty<MetadataItem>();
         return items.AsQueryable();
@@ -109,21 +159,25 @@ public sealed class LibrarySection
     /// Gets the alphabetical index for jump bar navigation.
     /// Returns entries for "#" (non-alphabetic) and A-Z with counts and offsets.
     /// </summary>
-    /// <param name="metadataType">The metadata type to filter by.</param>
+    /// <remarks>
+    /// This index is only meaningful when items are sorted by title. When sorting by other
+    /// fields (year, date added, etc.), the letter index should be hidden in the UI.
+    /// </remarks>
+    /// <param name="metadataTypes">The metadata types to filter by.</param>
     /// <param name="dataLoader">The batched loader for child metadata.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A list of letter index entries sorted alphabetically (# first, then A-Z).</returns>
     [Authorize]
     [GraphQLName("letterIndex")]
     public async Task<List<LetterIndexEntry>> GetLetterIndexAsync(
-        MetadataType metadataType,
+        MetadataType[] metadataTypes,
         IRootMetadataItemsBySectionIdDataLoader dataLoader,
         CancellationToken cancellationToken
     )
     {
         var items =
             await dataLoader.LoadAsync(
-                new RootMetadataItemsRequest(this.Id, metadataType),
+                new RootMetadataItemsRequest(this.Id, metadataTypes),
                 cancellationToken
             ) ?? Array.Empty<MetadataItem>();
 

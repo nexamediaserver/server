@@ -19,4 +19,11 @@ public sealed class RefreshItemMetadataInput
     /// Defaults to true to refresh entire item trees.
     /// </summary>
     public bool IncludeChildren { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets optional field names to force update, bypassing any locks.
+    /// Use constants from MetadataFieldNames for built-in fields.
+    /// When not specified or empty, locked fields are respected.
+    /// </summary>
+    public IReadOnlyList<string>? OverrideFields { get; set; }
 }

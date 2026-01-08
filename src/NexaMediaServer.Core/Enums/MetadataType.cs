@@ -203,6 +203,20 @@ public enum MetadataType
     /// </summary>
     Group = 95,
 
+    /// <summary>
+    /// The metadata represents a company or organization (e.g., production company, publisher, distributor).
+    /// </summary>
+    Company = 96,
+
+    /// <summary>
+    /// The metadata represents a label (e.g., record label, movie studio label, book imprint).
+    /// </summary>
+    /// <remarks>
+    /// Labels are organizational subdivisions that release content under a specific brand.
+    /// A company may own multiple labels, and labels can span different media types.
+    /// </remarks>
+    Label = 97,
+
     // ------------------------------ Other Metadata Types ---------------------------------
 
     /// <summary>

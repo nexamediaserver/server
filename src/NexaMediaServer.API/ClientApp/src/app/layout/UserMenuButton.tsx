@@ -1,7 +1,9 @@
+import { Link } from '@tanstack/react-router'
 import IconLogout from '~icons/material-symbols/logout'
 import IconPerson from '~icons/material-symbols/person'
+import IconSettings from '~icons/material-symbols/settings'
 
-import { useAuth } from '@/features/auth'
+import { useAuth, useIsAdmin } from '@/features/auth'
 import { Button } from '@/shared/components/ui/button'
 import {
   DropdownMenu,
@@ -14,6 +16,7 @@ import {
 
 export function UserMenuButton() {
   const { logout, user } = useAuth()
+  const isAdmin = useIsAdmin()
 
   const handleLogout = () => {
     void logout()
@@ -54,6 +57,14 @@ export function UserMenuButton() {
           <IconPerson className="mr-2 size-4" />
           Profile
         </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem asChild>
+            <Link to="/settings/general">
+              <IconSettings className="mr-2 size-4" />
+              Server Settings
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
           <IconLogout className="mr-2 size-4" />

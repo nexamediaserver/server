@@ -37,7 +37,7 @@ function TabsList({
     <TabsPrimitive.List
       className={cn(
         `
-          inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]
+          inline-flex h-9 w-fit items-center justify-center rounded-lg p-0.75
           text-muted-foreground
         `,
         className,

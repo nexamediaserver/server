@@ -104,7 +104,7 @@ public sealed class PlaybackRemuxController : ControllerBase
             mediaPart.File,
             string.IsNullOrWhiteSpace(ext) ? "mp4" : ext,
             this.Response.Body,
-            this.transcodeOptions.HardwareAcceleration,
+            this.transcodeOptions.EffectiveAcceleration,
             cancellationToken
         );
 
@@ -158,7 +158,7 @@ public sealed class PlaybackRemuxController : ControllerBase
             string.IsNullOrWhiteSpace(ext) ? "mp4" : ext,
             this.Response.Body,
             seekMs,
-            this.transcodeOptions.HardwareAcceleration,
+            this.transcodeOptions.EffectiveAcceleration,
             cancellationToken
         );
 

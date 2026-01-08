@@ -1,10 +1,15 @@
 // SPDX-FileCopyrightText: 2025 Nexa Contributors <contact@nexa.ms>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+using System.Collections.Frozen;
+
 using Hangfire;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Core.DTOs;
+using NexaMediaServer.Core.Enums;
 using NexaMediaServer.Core.Repositories;
 using NexaMediaServer.Core.Services;
 
@@ -15,6 +20,22 @@ namespace NexaMediaServer.Infrastructure.Services;
 /// </summary>
 public sealed partial class MetadataRefreshService : IMetadataRefreshService
 {
+    /// <summary>
+    /// Collection MetadataTypes that should not have descendants refreshed.
+    /// These types aggregate thumbnails from children, so refreshing should only
+    /// regenerate the collection image, not refresh all child metadata.
+    /// </summary>
+    private static readonly FrozenSet<MetadataType> CollectionTypes = new HashSet<MetadataType>
+    {
+        MetadataType.PhotoAlbum,
+        MetadataType.PictureSet,
+        MetadataType.BookSeries,
+        MetadataType.GameFranchise,
+        MetadataType.GameSeries,
+        MetadataType.Collection,
+        MetadataType.Playlist,
+    }.ToFrozenSet();
+
     private readonly IMetadataItemRepository metadataItemRepository;
     private readonly ILibrarySectionRepository librarySectionRepository;
     private readonly IBackgroundJobClient jobClient;
@@ -55,7 +76,7 @@ public sealed partial class MetadataRefreshService : IMetadataRefreshService
         var root = await this
             .metadataItemRepository.GetQueryable()
             .Where(mi => mi.Uuid == itemId)
-            .Select(mi => new { mi.Id, mi.Uuid })
+            .Select(mi => new { mi.Id, mi.Uuid, mi.MetadataType })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (root is null)
@@ -63,16 +84,22 @@ public sealed partial class MetadataRefreshService : IMetadataRefreshService
             return MetadataRefreshResult.Failure("Metadata item not found.");
         }
 
+        // Collection types (PhotoAlbum, Playlist, etc.) should not refresh children.
+        // They aggregate thumbnails from children, so refreshing should only
+        // regenerate the collection image, not refresh all child metadata.
+        var isCollectionType = CollectionTypes.Contains(root.MetadataType);
+        var shouldIncludeDescendants = includeDescendants && !isCollectionType;
+
         var targets = new List<Guid> { root.Uuid };
 
-        if (includeDescendants)
+        if (shouldIncludeDescendants)
         {
             var descendants = await this.GetDescendantUuidsAsync(root.Id, cancellationToken);
             targets.AddRange(descendants);
         }
 
-        int enqueued = this.EnqueueMetadataJobs(targets);
-        LogItemRefreshEnqueued(this.logger, enqueued, includeDescendants);
+        int enqueued = this.EnqueueMetadataJobs(targets, isCollectionType);
+        LogItemRefreshEnqueued(this.logger, enqueued, shouldIncludeDescendants);
 
         return MetadataRefreshResult.SuccessResult(enqueued);
     }
@@ -156,14 +183,28 @@ public sealed partial class MetadataRefreshService : IMetadataRefreshService
         return collected;
     }
 
-    private int EnqueueMetadataJobs(IEnumerable<Guid> itemUuids)
+    private int EnqueueMetadataJobs(IEnumerable<Guid> itemUuids, bool isCollectionRefresh = false)
     {
         var distinct = new HashSet<Guid>(itemUuids);
         foreach (var uuid in distinct)
         {
-            // Pass skipAnalysis: true for metadata-only refresh (ISidecarParser, IMetadataAgent, IImageProvider)
-            // without triggering file analysis or trickplay generation.
-            this.jobClient.Enqueue<MetadataService>(svc => svc.RefreshMetadataAsync(uuid, true));
+            if (isCollectionRefresh)
+            {
+                // For collection types, only regenerate the collection image.
+                // Skip metadata agents and file analysis since collection metadata
+                // is derived from children, not external sources.
+                this.jobClient.Enqueue<ICollectionImageOrchestrator>(svc =>
+                    svc.RegenerateCollectionImageAsync(uuid, CancellationToken.None));
+            }
+            else
+            {
+                // Pass skipAnalysis: true for metadata-only refresh (ISidecarParser, IMetadataAgent, IImageProvider)
+                // without triggering file analysis or trickplay generation.
+                this.jobClient.Enqueue<MetadataService>(svc => svc.RefreshMetadataAsync(uuid, true));
+
+                // Enqueue image generation jobs to regenerate thumbnails from IImageProvider implementations.
+                this.jobClient.Enqueue<MetadataService>(svc => svc.GenerateImagesAsync(uuid));
+            }
         }
 
         return distinct.Count;

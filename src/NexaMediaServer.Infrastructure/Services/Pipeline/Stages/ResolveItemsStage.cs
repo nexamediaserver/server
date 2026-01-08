@@ -3,9 +3,12 @@
 
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
+
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Services.Pipeline;
 using NexaMediaServer.Infrastructure.Services.Parts;
@@ -18,6 +21,11 @@ namespace NexaMediaServer.Infrastructure.Services.Pipeline.Stages;
 /// </summary>
 public sealed partial class ResolveItemsStage : IScanPipelineStage<ScanWorkItem, ScanWorkItem>
 {
+    /// <summary>
+    /// Interval between cache pruning operations to limit memory growth.
+    /// </summary>
+    private const int PruneIntervalItems = 5000;
+
     private readonly IPartsRegistry partsRegistry;
     private readonly ILogger<ResolveItemsStage> logger;
 
@@ -44,9 +52,24 @@ public sealed partial class ResolveItemsStage : IScanPipelineStage<ScanWorkItem,
     {
         var resolvers = this.partsRegistry.ItemResolvers;
 
+        // Use a bounded cache that only keeps ancestor paths needed for resolution.
+        // This prevents unbounded memory growth during large library scans.
+        var resolvedByPath =
+            new Dictionary<string, (MetadataBaseItem Metadata, FileSystemMetadata File)>(
+                StringComparer.OrdinalIgnoreCase
+            );
+
+        // Track the set of paths that are still valid as potential parents
+        var activeParentPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var itemCount = 0;
+
         await foreach (var item in input.WithCancellation(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            var parentPath = Path.GetDirectoryName(item.File.Path);
+            var resolvedParent = TryGetResolvedParent(parentPath, resolvedByPath);
+            var ancestors = BuildAncestors(parentPath, resolvedByPath);
 
             var args = new ItemResolveArgs(
                 item.File,
@@ -55,9 +78,9 @@ public sealed partial class ResolveItemsStage : IScanPipelineStage<ScanWorkItem,
                 context.LibrarySection.Id,
                 item.Children,
                 item.IsRoot,
-                item.Ancestors,
-                item.ResolvedParent,
-                Siblings: null
+                ancestors,
+                resolvedParent,
+                item.Siblings
             );
 
             MetadataBaseItem? resolved = null;
@@ -88,11 +111,89 @@ public sealed partial class ResolveItemsStage : IScanPipelineStage<ScanWorkItem,
                 sw.ElapsedMilliseconds
             );
 
+            // Only cache directories since files cannot be parents
+            if (item.File.IsDirectory)
+            {
+                resolvedByPath[item.File.Path] = (resolved, item.File);
+                activeParentPaths.Add(item.File.Path);
+
+                // Also mark the full ancestor chain as active
+                var ancestor = Path.GetDirectoryName(item.File.Path);
+                while (!string.IsNullOrEmpty(ancestor))
+                {
+                    activeParentPaths.Add(ancestor);
+                    ancestor = Path.GetDirectoryName(ancestor);
+                }
+            }
+
+            itemCount++;
+
+            // Periodically prune entries that are no longer needed as parents
+            // to prevent unbounded memory growth in large libraries
+            if (itemCount % PruneIntervalItems == 0)
+            {
+                PruneStaleEntries(resolvedByPath, activeParentPaths);
+                activeParentPaths.Clear();
+            }
+
             yield return item with
             {
                 ResolvedMetadata = resolved,
             };
         }
+    }
+
+    private static void PruneStaleEntries(
+        Dictionary<string, (MetadataBaseItem Metadata, FileSystemMetadata File)> cache,
+        HashSet<string> activeParentPaths
+    )
+    {
+        // Remove entries that are not in the active parent path set
+        // These are directories that have been fully processed and won't be needed again
+        var keysToRemove = cache.Keys.Where(k => !activeParentPaths.Contains(k)).ToList();
+        foreach (var key in keysToRemove)
+        {
+            cache.Remove(key);
+        }
+    }
+
+    private static MetadataBaseItem? TryGetResolvedParent(
+        string? parentPath,
+        Dictionary<string, (MetadataBaseItem Metadata, FileSystemMetadata File)> resolved
+    )
+    {
+        if (string.IsNullOrEmpty(parentPath))
+        {
+            return null;
+        }
+
+        return resolved.TryGetValue(parentPath, out var entry) ? entry.Metadata : null;
+    }
+
+    private static List<AncestorInfo>? BuildAncestors(
+        string? parentPath,
+        Dictionary<string, (MetadataBaseItem Metadata, FileSystemMetadata File)> resolved
+    )
+    {
+        if (string.IsNullOrEmpty(parentPath))
+        {
+            return null;
+        }
+
+        var ancestors = new List<AncestorInfo>();
+        var current = parentPath;
+
+        while (!string.IsNullOrEmpty(current))
+        {
+            if (resolved.TryGetValue(current, out var entry))
+            {
+                ancestors.Insert(0, new AncestorInfo(current, entry.File, entry.Metadata));
+            }
+
+            current = Path.GetDirectoryName(current);
+        }
+
+        return ancestors.Count == 0 ? null : ancestors;
     }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Skipping unclaimed file {Path}")]

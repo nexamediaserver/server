@@ -18,6 +18,11 @@ public interface IMetadataRefreshOrchestrator
     /// <param name="metadataItemUuid">UUID of the metadata item.</param>
     /// <param name="skipAnalysis">When <see langword="true"/>, skips enqueueing file analysis and trickplay generation jobs.
     /// Use for metadata-only refresh without triggering full media processing.</param>
+    /// <param name="overrideFields">Optional collection of field names to force update, bypassing any locks.
+    /// Use constants from <see cref="Constants.MetadataFieldNames"/> for built-in fields.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    Task RefreshMetadataAsync(Guid metadataItemUuid, bool skipAnalysis = false);
+    Task RefreshMetadataAsync(
+        Guid metadataItemUuid,
+        bool skipAnalysis = false,
+        IEnumerable<string>? overrideFields = null);
 }

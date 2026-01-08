@@ -1,8 +1,11 @@
 // SPDX-FileCopyrightText: 2025 Nexa Contributors <contact@nexa.ms>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+using System.Text.Json;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
 using NexaMediaServer.Core.Entities;
 
 namespace NexaMediaServer.Infrastructure.Data.Configurations;
@@ -82,5 +85,35 @@ public class MetadataItemConfiguration : IEntityTypeConfiguration<MetadataItem>
 
         // Index for promoted items hub query (IsPromoted = true, ordered by PromotedAt DESC)
         builder.HasIndex(e => new { e.IsPromoted, e.PromotedAt });
+
+        // Persist LockedFields as JSON in a single TEXT column for flexibility.
+        builder
+            .Property(e => e.LockedFields)
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v =>
+                    JsonSerializer.Deserialize<ICollection<string>>(
+                        v,
+                        (JsonSerializerOptions?)null
+                    ) ?? new List<string>()
+            )
+            .HasColumnType("TEXT")
+            .HasDefaultValue(new List<string>())
+            .IsRequired();
+
+        // Persist ExtraFields as JSON in a single TEXT column for flexible typed values.
+        builder
+            .Property(e => e.ExtraFields)
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v =>
+                    JsonSerializer.Deserialize<Dictionary<string, System.Text.Json.JsonElement>>(
+                        v,
+                        (JsonSerializerOptions?)null
+                    ) ?? new Dictionary<string, System.Text.Json.JsonElement>()
+            )
+            .HasColumnType("TEXT")
+            .HasDefaultValue(new Dictionary<string, System.Text.Json.JsonElement>())
+            .IsRequired();
     }
 }

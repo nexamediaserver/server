@@ -1,5 +1,5 @@
 import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react-swc'
+import react from '@vitejs/plugin-react'
 import { resolve } from 'node:path'
 import icons from 'unplugin-icons/vite'
 import { defineConfig } from 'vite'
@@ -17,7 +17,11 @@ export default defineConfig({
     entries: ['./src/main.tsx'],
   },
   plugins: [
-    react(),
+    react({
+      babel: {
+        plugins: ['babel-plugin-react-compiler'],
+      },
+    }),
     graphqlLoader(),
     tailwindcss(),
     icons({

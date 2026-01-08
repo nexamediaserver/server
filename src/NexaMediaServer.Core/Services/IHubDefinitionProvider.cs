@@ -23,6 +23,7 @@ public interface IHubDefinitionProvider
     /// Gets the default hub definitions for an item detail page based on metadata type.
     /// </summary>
     /// <param name="metadataType">The type of metadata item being viewed.</param>
+    /// <param name="childCount">Optional child count for conditional hub logic (e.g., album releases).</param>
     /// <returns>A list of hub definitions appropriate for the item detail page.</returns>
-    IReadOnlyList<HubDefinition> GetItemDetailHubs(MetadataType metadataType);
+    IReadOnlyList<HubDefinition> GetItemDetailHubs(MetadataType metadataType, int? childCount = null);
 }

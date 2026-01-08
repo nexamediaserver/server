@@ -3,6 +3,8 @@
 
 using System;
 using System.Linq;
+using System.Text.Json;
+
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
 
@@ -39,9 +41,19 @@ public static class MetadataItemMapper
             MetadataType.ExtraOther => new ExtraOther(),
             MetadataType.AlbumReleaseGroup => new AlbumReleaseGroup(),
             MetadataType.AlbumRelease => new AlbumRelease(),
+            MetadataType.AlbumMedium => new AlbumMedium(),
             MetadataType.Track => new Track(),
             MetadataType.Recording => new Recording(),
             MetadataType.AudioWork => new AudioWork(),
+            MetadataType.PhotoAlbum => new PhotoAlbum(),
+            MetadataType.Photo => new Photo(),
+            MetadataType.PictureSet => new PictureSet(),
+            MetadataType.Picture => new Picture(),
+            MetadataType.BookSeries => new BookSeries(),
+            MetadataType.GameFranchise => new GameFranchise(),
+            MetadataType.GameSeries => new GameSeries(),
+            MetadataType.Collection => new UserCollection(),
+            MetadataType.Playlist => new Playlist(),
             MetadataType.Person => new Person(),
             MetadataType.Group => new Group(),
             _ => throw new NotSupportedException(
@@ -81,9 +93,19 @@ public static class MetadataItemMapper
                 ExtraOther => MetadataType.ExtraOther,
                 AlbumReleaseGroup => MetadataType.AlbumReleaseGroup,
                 AlbumRelease => MetadataType.AlbumRelease,
+                AlbumMedium => MetadataType.AlbumMedium,
                 Track => MetadataType.Track,
                 Recording => MetadataType.Recording,
                 AudioWork => MetadataType.AudioWork,
+                PhotoAlbum => MetadataType.PhotoAlbum,
+                Photo => MetadataType.Photo,
+                PictureSet => MetadataType.PictureSet,
+                Picture => MetadataType.Picture,
+                BookSeries => MetadataType.BookSeries,
+                GameFranchise => MetadataType.GameFranchise,
+                GameSeries => MetadataType.GameSeries,
+                UserCollection => MetadataType.Collection,
+                Playlist => MetadataType.Playlist,
                 Person => MetadataType.Person,
                 Group => MetadataType.Group,
                 _ => throw new NotSupportedException(
@@ -122,6 +144,9 @@ public static class MetadataItemMapper
         dto.ParentId = entity.ParentId;
         dto.MediaItems = entity.MediaItems;
         dto.Settings = entity.Settings;
+
+        // Map ExtraFields from entity (Dictionary<string, JsonElement>) to DTO (Dictionary<string, object?>)
+        CopyExtraFieldsFromEntity(entity, dto);
 
         dto.Children = entity.Children?.Select(Map).ToList() ?? [];
         foreach (var child in dto.Children)
@@ -162,10 +187,67 @@ public static class MetadataItemMapper
         entity.MediaItems = dto.MediaItems;
         entity.Settings = dto.Settings;
 
+        // Map ExtraFields from DTO (Dictionary<string, object?>) to entity (Dictionary<string, JsonElement>)
+        CopyExtraFields(dto, entity);
+
         entity.Children = dto.Children.Select(MapToEntity).ToList();
         foreach (var child in entity.Children)
         {
             child.Parent = entity;
         }
+    }
+
+    private static void CopyExtraFields(MetadataBaseItem dto, MetadataItem entity)
+    {
+        if (dto.ExtraFields.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var kvp in dto.ExtraFields)
+        {
+            if (kvp.Value is null)
+            {
+                // Skip null values, or could use JsonDocument.Parse("null").RootElement
+                continue;
+            }
+
+            // Convert object to JsonElement via serialization
+            var json = JsonSerializer.Serialize(kvp.Value);
+            using var doc = JsonDocument.Parse(json);
+            entity.ExtraFields[kvp.Key] = doc.RootElement.Clone();
+        }
+    }
+
+    private static void CopyExtraFieldsFromEntity(MetadataItem entity, MetadataBaseItem dto)
+    {
+        if (entity.ExtraFields.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var kvp in entity.ExtraFields)
+        {
+            // Convert JsonElement to object
+            dto.ExtraFields[kvp.Key] = ConvertJsonElement(kvp.Value);
+        }
+    }
+
+    private static object? ConvertJsonElement(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number when element.TryGetInt32(out var intVal) => intVal,
+            JsonValueKind.Number when element.TryGetInt64(out var longVal) => longVal,
+            JsonValueKind.Number => element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElement).ToList(),
+            JsonValueKind.Object => element.EnumerateObject()
+                .ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value)),
+            _ => element.GetRawText(),
+        };
     }
 }

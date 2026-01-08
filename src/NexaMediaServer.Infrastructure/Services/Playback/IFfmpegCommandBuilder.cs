@@ -4,6 +4,7 @@
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+
 using NexaMediaServer.Core.Configuration;
 
 namespace NexaMediaServer.Infrastructure.Services;
@@ -67,6 +68,27 @@ public interface IFfmpegCommandBuilder
     /// <returns>A task representing the transcode operation.</returns>
     Task CreateDashWithSeekAsync(
         DashTranscodeJob job,
+        long seekMs,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Creates an HLS playlist and segments on disk according to the job parameters.
+    /// </summary>
+    /// <param name="job">HLS job description.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the transcode operation.</returns>
+    Task CreateHlsAsync(HlsTranscodeJob job, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Creates an HLS playlist and segments on disk starting from a specific timestamp.
+    /// </summary>
+    /// <param name="job">HLS job description.</param>
+    /// <param name="seekMs">The position in milliseconds to seek to before starting the transcode.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task representing the transcode operation.</returns>
+    Task CreateHlsWithSeekAsync(
+        HlsTranscodeJob job,
         long seekMs,
         CancellationToken cancellationToken
     );

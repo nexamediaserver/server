@@ -38,4 +38,9 @@ public sealed class PlaybackDecisionInput
     /// Gets or sets an optional capability declaration to upsert.
     /// </summary>
     public PlaybackCapabilityInput? Capability { get; set; }
+
+    /// <summary>
+    /// Gets or sets the target playlist index when status is "jump".
+    /// </summary>
+    public int? JumpIndex { get; set; }
 }

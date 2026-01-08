@@ -3,8 +3,11 @@
 
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+
 using Hangfire;
+
 using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Core.DTOs;
 using NexaMediaServer.Core.Services;
 
@@ -26,10 +29,17 @@ public sealed partial class WatcherEventBuffer : IDisposable
     /// </summary>
     public static readonly TimeSpan MaxDebounceDelay = TimeSpan.FromSeconds(2);
 
+    // Debounce tuning: shorten windows under drop pressure but do not shrink below these floors
+    private static readonly TimeSpan MinDebounceFloor = TimeSpan.FromMilliseconds(150);
+    private static readonly TimeSpan MaxDebounceFloor = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan DropDecayWindow = TimeSpan.FromSeconds(30);
+    private static readonly int MaxDropImpact = 8;
+
     private readonly ILogger<WatcherEventBuffer> logger;
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly ConcurrentDictionary<int, LibraryEventBuffer> libraryBuffers = new();
     private readonly ConcurrentDictionary<int, bool> librariesRequiringFullRescan = new();
+    private readonly ConcurrentDictionary<int, DropPressure> dropPressure = new();
     private readonly Channel<FileSystemChangeEvent> incomingEvents;
     private readonly CancellationTokenSource cts = new();
     private readonly Task processingTask;
@@ -52,7 +62,8 @@ public sealed partial class WatcherEventBuffer : IDisposable
         this.incomingEvents = Channel.CreateBounded<FileSystemChangeEvent>(
             new BoundedChannelOptions(10000)
             {
-                FullMode = BoundedChannelFullMode.DropOldest,
+                // Drop writes when saturated so we can observe pressure and adapt
+                FullMode = BoundedChannelFullMode.DropWrite,
                 SingleReader = true,
                 SingleWriter = false,
             }
@@ -72,9 +83,10 @@ public sealed partial class WatcherEventBuffer : IDisposable
             return;
         }
 
-        // Try to write to the channel; if full, oldest events are dropped
+        // Try to write to the channel; if full, the event is dropped and pressure recorded
         if (!this.incomingEvents.Writer.TryWrite(evt))
         {
+            this.RegisterDrop(evt.LibrarySectionId);
             LogEventDropped(this.logger, evt.Path, evt.LibrarySectionId);
         }
     }
@@ -95,6 +107,21 @@ public sealed partial class WatcherEventBuffer : IDisposable
 
         // Dispatch full rescan job
         this.DispatchFullRescanJob(librarySectionId);
+    }
+
+    /// <summary>
+    /// Removes all tracking data for a deleted library to prevent memory leaks.
+    /// </summary>
+    /// <param name="librarySectionId">The library section ID that was deleted.</param>
+    public void CleanupDeletedLibrary(int librarySectionId)
+    {
+        if (this.libraryBuffers.TryRemove(librarySectionId, out var buffer))
+        {
+            buffer.Dispose();
+        }
+
+        this.librariesRequiringFullRescan.TryRemove(librarySectionId, out _);
+        this.dropPressure.TryRemove(librarySectionId, out _);
     }
 
     /// <summary>
@@ -128,6 +155,41 @@ public sealed partial class WatcherEventBuffer : IDisposable
         }
 
         this.libraryBuffers.Clear();
+    }
+
+    /// <summary>
+    /// Computes the current debounce window for a library, shortening when recent drops occurred.
+    /// </summary>
+    /// <param name="librarySectionId">The library section id.</param>
+    /// <returns>Debounce window with min and max durations.</returns>
+    internal DebounceWindow GetDebounceWindow(int librarySectionId)
+    {
+        var now = DateTime.UtcNow;
+        var min = MinDebounceDelay;
+        var max = MaxDebounceDelay;
+
+        if (this.dropPressure.TryGetValue(librarySectionId, out var pressure))
+        {
+            var age = now - pressure.LastDrop;
+            if (age > DropDecayWindow)
+            {
+                this.dropPressure.TryRemove(librarySectionId, out _);
+            }
+            else
+            {
+                // More recent and frequent drops shorten debounce windows to flush faster
+                var severity = Math.Min(pressure.Count, MaxDropImpact);
+                var scale = 1 + (severity * 0.25); // up to 3x shorter
+                min = TimeSpan.FromMilliseconds(
+                    Math.Max(MinDebounceDelay.TotalMilliseconds / scale, MinDebounceFloor.TotalMilliseconds)
+                );
+                max = TimeSpan.FromMilliseconds(
+                    Math.Max(MaxDebounceDelay.TotalMilliseconds / scale, MaxDebounceFloor.TotalMilliseconds)
+                );
+            }
+        }
+
+        return new DebounceWindow(min, max);
     }
 
     /// <summary>
@@ -211,4 +273,26 @@ public sealed partial class WatcherEventBuffer : IDisposable
             LogDispatchError(this.logger, librarySectionId, ex);
         }
     }
+
+    private void RegisterDrop(int librarySectionId)
+    {
+        var now = DateTime.UtcNow;
+
+        this.dropPressure.AddOrUpdate(
+            librarySectionId,
+            static (_, nowState) => new DropPressure(1, nowState),
+            static (_, current, nowState) => new DropPressure(current.Count + 1, nowState),
+            now
+        );
+    }
+
+    /// <summary>
+    /// Debounce window boundaries for a library.
+    /// </summary>
+    internal readonly record struct DebounceWindow(TimeSpan Min, TimeSpan Max);
+
+    /// <summary>
+    /// Tracks drop pressure for a library: count and last occurrence.
+    /// </summary>
+    private sealed record DropPressure(int Count, DateTime LastDrop);
 }

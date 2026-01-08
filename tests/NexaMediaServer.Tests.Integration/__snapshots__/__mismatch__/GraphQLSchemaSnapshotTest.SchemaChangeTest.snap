@@ -1,0 +1,2617 @@
+﻿schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+"The node interface is implemented by entities that have a global unique identifier."
+interface Node {
+  id: ID!
+}
+
+"Represents the mutation payload returned after creating a library section."
+type AddLibrarySectionPayload {
+  "Gets the created library section."
+  librarySection: LibrarySection!
+  "Gets the identifier of the queued scan."
+  scanId: Int!
+  query: Query!
+}
+
+"GraphQL payload indicating the outcome of an analyze item request."
+type AnalyzeItemPayload {
+  "Gets a value indicating whether the request succeeded."
+  success: Boolean!
+  "Gets an optional error description for failed requests."
+  error: String
+  query: Query!
+}
+
+"A segment of a collection."
+type ChildrenCollectionSegment {
+  "Information to aid in pagination."
+  pageInfo: CollectionSegmentInfo!
+  "A flattened list of the items."
+  items: [Item!]
+  totalCount: Int! @cost(weight: "10")
+}
+
+"Information about the offset pagination."
+type CollectionSegmentInfo {
+  "Indicates whether more items exist following the set defined by the clients arguments."
+  hasNextPage: Boolean!
+  "Indicates whether more items exist prior the set defined by the clients arguments."
+  hasPreviousPage: Boolean!
+}
+
+"Represents a custom field definition for the GraphQL API."
+type CustomFieldDefinition {
+  "Gets the unique identifier of the custom field definition."
+  id: ID!
+  "Gets the unique key identifier for this field."
+  key: String!
+  "Gets the display label for this field."
+  label: String!
+  "Gets the widget type for rendering this field."
+  widget: DetailFieldWidgetType!
+  "Gets the metadata types this field applies to."
+  applicableMetadataTypes: [MetadataType!]!
+  "Gets the display order of this field."
+  sortOrder: Int!
+  "Gets a value indicating whether this field is enabled."
+  isEnabled: Boolean!
+}
+
+"GraphQL representation of a detail field configuration."
+type DetailFieldConfiguration {
+  "Gets or sets the metadata type this configuration targets."
+  metadataType: MetadataType!
+  "Gets or sets the optional library section identifier when scoped."
+  librarySectionId: ID
+  "Gets or sets the ordered list of enabled fields."
+  enabledFieldTypes: [DetailFieldType!]!
+  "Gets or sets the list of disabled field types."
+  disabledFieldTypes: [DetailFieldType!]!
+  "Gets or sets the list of disabled custom field keys."
+  disabledCustomFieldKeys: [String!]!
+  "Gets or sets the list of field group definitions."
+  fieldGroups: [DetailFieldGroup!]
+  "Gets or sets the field-to-group assignments as key-value pairs."
+  fieldGroupAssignments: [KeyValuePairOfStringAndString!]
+}
+
+"Represents a field definition for the GraphQL API."
+type DetailFieldDefinition {
+  "Gets the unique key identifying this field definition."
+  key: String!
+  "Gets the type of field (e.g., Title, Summary, Custom, etc.)."
+  fieldType: DetailFieldType!
+  "Gets the display label for this field."
+  label: String!
+  "Gets the recommended widget type for client-side rendering."
+  widget: DetailFieldWidgetType!
+  "Gets the display order of this field."
+  sortOrder: Int!
+  "Gets the custom field key for Custom field types."
+  customFieldKey: String
+  "Gets the key of the group this field belongs to."
+  groupKey: String
+}
+
+"Represents a field group definition for the GraphQL API."
+type DetailFieldGroup {
+  "Gets the unique key identifying this group."
+  groupKey: String!
+  "Gets the display label for this group."
+  label: String!
+  "Gets the layout type for rendering fields within this group."
+  layoutType: DetailFieldGroupLayoutType!
+  "Gets the display order of this group."
+  sortOrder: Int!
+  "Gets a value indicating whether this group can be collapsed by the user."
+  isCollapsible: Boolean!
+}
+
+"GraphQL type representing a directory listing response."
+type DirectoryListing {
+  "Gets the canonical path that was listed."
+  currentPath: String!
+  "Gets the parent path if available."
+  parentPath: String
+  "Gets the child entries."
+  entries: [FileSystemEntry!]!
+}
+
+"Represents an external identifier from a metadata provider."
+type ExternalId {
+  "The provider name (e.g., \"tmdb\", \"imdb\", \"tvdb\")."
+  provider: String!
+  "The identifier value from the provider."
+  value: String!
+}
+
+"Represents a key-value pair for extra fields in the GraphQL API."
+type ExtraField {
+  "Gets the field key."
+  key: String!
+  "Gets the field value as a JSON element."
+  value: Any
+}
+
+"Payload containing detected FFmpeg capabilities and recommendations."
+type FfmpegCapabilitiesPayload {
+  "The detected FFmpeg version string."
+  version: String!
+  "List of supported hardware acceleration types."
+  supportedHardwareAccelerators: [HardwareAccelerationKind!]!
+  "List of all supported encoders."
+  supportedEncoders: [String!]!
+  "List of all supported filters."
+  supportedFilters: [String!]!
+  "The recommended hardware acceleration for this platform."
+  recommendedAcceleration: HardwareAccelerationKind!
+  "Whether capability detection has completed."
+  isDetected: Boolean!
+}
+
+"GraphQL type describing an entry in a directory listing."
+type FileSystemEntry {
+  "Gets the entry name."
+  name: String!
+  "Gets the raw server path to the entry."
+  path: String!
+  "Gets a value indicating whether the entry is a directory."
+  isDirectory: Boolean!
+  "Gets a value indicating whether the entry is a file."
+  isFile: Boolean!
+  "Gets a value indicating whether the entry is a symbolic link."
+  isSymbolicLink: Boolean!
+  "Gets a value indicating whether the entry can be selected in the UI."
+  isSelectable: Boolean!
+}
+
+"GraphQL type representing an available filesystem root."
+type FileSystemRoot {
+  "Gets the identifier for the root entry."
+  id: String!
+  "Gets the display label."
+  label: String!
+  "Gets the raw path accessible by the server OS."
+  path: String!
+  "Gets the kind of root."
+  kind: FileSystemRootKind!
+  "Gets a value indicating whether the root is read-only."
+  isReadOnly: Boolean!
+}
+
+"GraphQL representation of a hub configuration."
+type HubConfiguration {
+  "Gets or sets the ordered list of enabled hub types."
+  enabledHubTypes: [HubType!]!
+  "Gets or sets the list of disabled hub types."
+  disabledHubTypes: [HubType!]!
+}
+
+"Represents a hub definition for the GraphQL API."
+type HubDefinition {
+  "Gets the unique key identifying this hub definition."
+  key: String!
+  "Gets the type of hub (e.g., RecentlyAdded, TopRated, etc.)."
+  type: HubType!
+  "Gets the display title for this hub."
+  title: String!
+  "Gets the metadata type of items in this hub."
+  metadataType: MetadataType!
+  "Gets the recommended widget type for client-side rendering."
+  widget: HubWidgetType!
+  "Gets the library section ID this hub is scoped to, if any."
+  librarySectionId: ID
+  "Gets the context ID (e.g., parent item ID for detail page hubs)."
+  contextId: ID
+  "Gets the optional filter value for this hub (e.g., genre name, director name)."
+  filterValue: String
+}
+
+"Representation of a metadata item for pagination queries."
+type Item implements Node {
+  """
+  Gets the extra fields associated with this metadata item.
+  
+  
+  **Returns:**
+  A list of extra field key-value pairs.
+  """
+  extraFields: [ExtraField!]!
+  """
+  Resolves the parent metadata item when available.
+  
+  
+  **Returns:**
+  The parent metadata item or null if none exists.
+  """
+  parent: Item @cost(weight: "10")
+  """
+  Gets an offset-paginated list of child metadata items for this item.
+  Useful for PhotoAlbum, PictureSet, Season, and other container types.
+  
+  
+  **Returns:**
+  An in-memory queryable used by HotChocolate to create a collection segment.
+  """
+  children(skip: Int take: Int where: ItemFilterInput @cost(weight: "10") order: [ItemSortInput!] @cost(weight: "10")): ChildrenCollectionSegment @authorize @listSize(assumedSize: 100, slicingArguments: [ "take" ], slicingArgumentDefaultValue: 100, sizedFields: [ "items" ], requireOneSlicingArgument: false) @cost(weight: "10")
+  """
+  Resolves the number of times the current user has viewed the metadata item.
+  
+  
+  **Returns:**
+  The number of completed views for the current user.
+  """
+  viewCount: Int! @cost(weight: "10")
+  """
+  Resolves the resume offset for the current user.
+  
+  
+  **Returns:**
+  The playback offset in milliseconds.
+  """
+  viewOffset: Int! @cost(weight: "10")
+  """
+  Resolves the user rating for the metadata item.
+  
+  
+  **Returns:**
+  The rating value or 0 when unset.
+  """
+  rating: Float! @cost(weight: "10")
+  """
+  Resolves the primary person or group for a music album.
+  For albums, this looks at persons linked to child tracks and returns the first one.
+  
+  
+  **Returns:**
+  The primary person or group, or null if none exists.
+  """
+  primaryPerson: Item @cost(weight: "10")
+  """
+  Resolves all persons and groups for a music track.
+  
+  
+  **Returns:**
+  The list of persons and groups.
+  """
+  persons: [Item!]! @cost(weight: "10")
+  """
+  Resolves external identifiers (TMDB, IMDb, TVDB, etc.) for the metadata item.
+  
+  
+  **Returns:**
+  A list of external identifiers.
+  """
+  externalIds: [ExternalId!]! @cost(weight: "10")
+  "Gets the global Relay-compatible identifier of the metadata item."
+  id: ID!
+  "Gets the type of the metadata item."
+  metadataType: MetadataType!
+  "Gets the title of the metadata item."
+  title: String!
+  "Gets the sortable title of the metadata item."
+  titleSort: String!
+  "Gets the original title of the metadata item."
+  originalTitle: String!
+  "Gets the summary description of the metadata item."
+  summary: String!
+  "Gets the tagline of the metadata item."
+  tagline: String!
+  "Gets the content rating of the metadata item."
+  contentRating: String!
+  "Gets the year the metadata item was released."
+  year: Int!
+  "Gets the date the metadata item was originally available."
+  originallyAvailableAt: LocalDate
+  "Gets the thumbnail URL of the metadata item."
+  thumbUri: String
+  "Gets the ThumbHash placeholder for the thumbnail."
+  thumbHash: String
+  "Gets the backdrop URL of the metadata item."
+  artUri: String
+  "Gets the ThumbHash placeholder for the backdrop."
+  artHash: String
+  "Gets the logo URL of the metadata item."
+  logoUri: String
+  "Gets the ThumbHash placeholder for the logo."
+  logoHash: String
+  "Gets the theme URL of the metadata item."
+  themeUrl: String
+  "Gets the owning library section identifier (Relay GUID)."
+  librarySectionId: ID!
+  "Gets the index of the metadata item."
+  index: Int!
+  "Gets the length of the metadata item in milliseconds."
+  length: Int!
+  "Gets the number of leaf items in the metadata item."
+  leafCount: Int!
+  "Gets the list of genres associated with this metadata item."
+  genres: [String!]!
+  "Gets the list of tags associated with this metadata item."
+  tags: [String!]!
+  "Gets the list of field names that are locked from automatic updates."
+  lockedFields: [String!]!
+  "Gets the number of child items in the metadata item."
+  childCount: Int!
+  "Gets an optional context-specific string (e.g., role name for people in hubs)."
+  context: String
+  "Gets a value indicating whether this item is promoted (featured in the Promoted hub)."
+  isPromoted: Boolean!
+}
+
+"Represents a job notification event sent to clients via GraphQL subscriptions."
+type JobNotification {
+  "Gets or sets the unique identifier for this job instance."
+  id: String!
+  "Gets or sets the type of job."
+  type: JobType!
+  "Gets or sets the library section ID if the job is related to a specific library."
+  librarySectionId: Int
+  "Gets or sets the library section name if available."
+  librarySectionName: String
+  "Gets or sets a human-readable description of the job."
+  description: String!
+  "Gets or sets the current progress percentage (0-100)."
+  progressPercentage: Float!
+  "Gets or sets the number of completed items."
+  completedItems: Int!
+  "Gets or sets the total number of items to process."
+  totalItems: Int!
+  "Gets or sets a value indicating whether the job is still running."
+  isActive: Boolean!
+  "Gets or sets the timestamp when this notification was generated."
+  timestamp: DateTime!
+}
+
+type KeyValuePairOfStringAndBoolean {
+  key: String!
+  value: Boolean!
+}
+
+type KeyValuePairOfStringAndDictionaryOfStringAndString {
+  key: String!
+  value: [KeyValuePairOfStringAndString!]!
+}
+
+type KeyValuePairOfStringAndString {
+  key: String!
+  value: String!
+}
+
+"""
+Represents a letter in the alphabetical index with its item count and position.
+Used for jump bar navigation in library browse views.
+"""
+type LetterIndexEntry {
+  """
+  Gets the letter for this index entry.
+  "#" represents all non-alphabetic characters (numbers, symbols).
+  "A" through "Z" represent alphabetic characters.
+  """
+  letter: String!
+  "Gets the number of items starting with this letter."
+  count: Int!
+  """
+  Gets the zero-based offset of the first item starting with this letter
+  in the sorted list. Used for skip-based pagination jumps.
+  """
+  firstItemOffset: Int!
+}
+
+"Representation of a library section for GraphQL queries."
+type LibrarySection implements Node {
+  """
+  Gets an offset-paginated list of top-level (root) metadata items (those without a parent) for this library section.
+  Uses skip/take parameters to allow arbitrary position jumping for jump bar navigation.
+  
+  
+  **Returns:**
+  An in-memory queryable used by HotChocolate to create a collection segment.
+  """
+  children(skip: Int take: Int "Optional metadata type constraint." metadataType: MetadataType! where: ItemFilterInput @cost(weight: "10") order: [ItemSortInput!] @cost(weight: "10")): ChildrenCollectionSegment @authorize @listSize(assumedSize: 100, slicingArguments: [ "take" ], slicingArgumentDefaultValue: 100, sizedFields: [ "items" ], requireOneSlicingArgument: false) @cost(weight: "10")
+  """
+  Gets the alphabetical index for jump bar navigation.
+  Returns entries for "#" (non-alphabetic) and A-Z with counts and offsets.
+  
+  
+  **Returns:**
+  A list of letter index entries sorted alphabetically (# first, then A-Z).
+  """
+  letterIndex("The metadata type to filter by." metadataType: MetadataType!): [LetterIndexEntry!]! @authorize @cost(weight: "10")
+  """
+  Gets all distinct genres present in this library section.
+  
+  
+  **Returns:**
+  A flat list of genre names.
+  """
+  genres: [String!]! @authorize @cost(weight: "10")
+  """
+  Gets all distinct tags present in this library section.
+  
+  
+  **Returns:**
+  A flat list of tag names.
+  """
+  tags: [String!]! @authorize @cost(weight: "10")
+  "Gets the global Relay-compatible identifier of the library section."
+  id: ID!
+  "Gets the display name of the library section."
+  name: String!
+  "Gets the sortable name of the library section."
+  sortName: String!
+  "Gets the type of the library section."
+  type: LibraryType!
+  "Gets the list of root locations for the library section."
+  locations: [String!]!
+  "Gets the settings for this library section."
+  settings: LibrarySectionSettings!
+}
+
+"GraphQL representation of per-library settings."
+type LibrarySectionSettings {
+  "Gets the preferred metadata language (BCP-47), e.g. \"en\", \"de-DE\"."
+  preferredMetadataLanguage: String!
+  "Gets the ordered list of metadata agent identifiers to use."
+  metadataAgentOrder: [String!]!
+  "Gets the list of metadata agent identifiers that are disabled for this library."
+  disabledMetadataAgents: [String!]!
+  "Gets a value indicating whether to hide seasons for single-season series."
+  hideSeasonsForSingleSeasonSeries: Boolean!
+  "Gets the episode sort order preference for episodic content."
+  episodeSortOrder: EpisodeSortOrder!
+  "Gets the preferred audio languages (ordered)."
+  preferredAudioLanguages: [String!]!
+  "Gets the preferred subtitle languages (ordered)."
+  preferredSubtitleLanguages: [String!]!
+  "Gets the map of metadata agent specific settings: agentId -> (key -> value)."
+  metadataAgentSettings: [KeyValuePairOfStringAndDictionaryOfStringAndString!]!
+}
+
+"A connection to a list of items."
+type LibrarySectionsConnection {
+  "Information to aid in pagination."
+  pageInfo: PageInfo!
+  "A list of edges."
+  edges: [LibrarySectionsEdge!]
+  "A flattened list of the nodes."
+  nodes: [LibrarySection!]
+  "Identifies the total count of items in the connection."
+  totalCount: Int! @cost(weight: "10")
+}
+
+"An edge in a connection."
+type LibrarySectionsEdge {
+  "A cursor for use in pagination."
+  cursor: String!
+  "The item at the end of the edge."
+  node: LibrarySection!
+}
+
+"Represents a metadata agent available in the system for GraphQL exposure."
+type MetadataAgentInfo {
+  "Gets the unique identifier\/name of the agent."
+  name: String!
+  "Gets the human-readable display name for the UI."
+  displayName: String!
+  "Gets a user-friendly description of what this agent does."
+  description: String!
+  "Gets the category of this agent (Sidecar, Embedded, Local, Remote)."
+  category: MetadataAgentCategory!
+  "Gets the default execution order. Lower values run first."
+  defaultOrder: Int!
+  """
+  Gets the library types this agent supports.
+  Empty means the agent supports all library types.
+  """
+  supportedLibraryTypes: [LibraryType!]!
+}
+
+"Payload returned after locking or unlocking metadata fields."
+type MetadataFieldLockPayload {
+  "Whether the operation was successful."
+  success: Boolean!
+  "The current list of locked fields on the item after the operation."
+  lockedFields: [String!]
+  "Error message if the operation failed."
+  error: String
+  query: Query!
+}
+
+"A connection to a list of items."
+type MetadataItemsConnection {
+  "Information to aid in pagination."
+  pageInfo: PageInfo!
+  "A list of edges."
+  edges: [MetadataItemsEdge!]
+  "A flattened list of the nodes."
+  nodes: [Item!]
+}
+
+"An edge in a connection."
+type MetadataItemsEdge {
+  "A cursor for use in pagination."
+  cursor: String!
+  "The item at the end of the edge."
+  node: Item!
+}
+
+type Mutation {
+  """
+  Adds a new library section and schedules an initial scan.
+  
+  
+  **Returns:**
+  The created library section and scan metadata.
+  """
+  addLibrarySection("The user-provided library section details." input: AddLibrarySectionInput!): AddLibrarySectionPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Enqueues a metadata-only refresh for a metadata item (optionally its descendants).
+  
+  
+  **Returns:**
+  Payload indicating success or error.
+  """
+  refreshItemMetadata("The item and options to refresh." input: RefreshItemMetadataInput!): RefreshMetadataPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Enqueues metadata-only refresh jobs for an entire library section.
+  
+  
+  **Returns:**
+  Payload indicating success or error.
+  """
+  refreshLibraryMetadata("The target library section." input: RefreshLibraryMetadataInput!): RefreshMetadataPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Starts a full filesystem scan for an entire library section.
+  
+  
+  **Returns:**
+  Payload indicating success, scan ID, or error.
+  """
+  startLibraryScan("The target library section." input: StartLibraryScanInput!): StartLibraryScanPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Enqueues file analysis, GoP-index generation, and trickplay generation for a metadata item.
+  
+  
+  **Returns:**
+  Payload indicating success or error.
+  """
+  analyzeItem("The item to analyze." input: AnalyzeItemInput!): AnalyzeItemPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Removes a library section and all associated metadata items.
+  
+  
+  **Returns:**
+  Payload indicating success or error.
+  """
+  removeLibrarySection("The library section to remove." input: RemoveLibrarySectionInput!): RemoveLibrarySectionPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Promotes a metadata item to the hero carousel.
+  
+  
+  **Returns:**
+  Payload indicating success or error.
+  """
+  promoteItem("The promote item input containing the item ID and optional expiration." input: PromoteItemInput!): PromoteItemPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Unpromotes a metadata item from the hero carousel.
+  
+  
+  **Returns:**
+  Payload indicating success or error.
+  """
+  unpromoteItem("The unpromote item input containing the item ID." input: UnpromoteItemInput!): PromoteItemPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Locks specified fields on a metadata item, preventing automatic updates.
+  
+  
+  **Returns:**
+  Payload indicating success and the current locked fields.
+  """
+  lockMetadataFields("The item and fields to lock." input: LockMetadataFieldsInput!): MetadataFieldLockPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Unlocks specified fields on a metadata item, allowing automatic updates.
+  
+  
+  **Returns:**
+  Payload indicating success and the current locked fields.
+  """
+  unlockMetadataFields("The item and fields to unlock." input: UnlockMetadataFieldsInput!): MetadataFieldLockPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Updates the admin-defined detail field configuration for a metadata type and optional library.
+  
+  
+  **Returns:**
+  The updated configuration.
+  """
+  updateAdminDetailFieldConfiguration("The configuration update request." input: UpdateAdminDetailFieldConfigurationInput!): DetailFieldConfiguration! @authorize(policy: "Administrator") @cost(weight: "10")
+  """
+  Updates the field visibility configuration for the current user.
+  
+  
+  **Returns:**
+  The updated field definitions.
+  """
+  updateDetailFieldConfiguration("The configuration input." input: UpdateDetailFieldConfigurationInput!): [DetailFieldDefinition!]! @authorize(policy: "Administrator") @cost(weight: "10")
+  """
+  Creates a new custom field definition (admin only).
+  
+  
+  **Returns:**
+  The created custom field definition.
+  """
+  createCustomFieldDefinition("The custom field definition input." input: CreateCustomFieldDefinitionInput!): CustomFieldDefinition! @authorize(policy: "Administrator") @cost(weight: "10")
+  """
+  Updates an existing custom field definition (admin only).
+  
+  
+  **Returns:**
+  The updated custom field definition.
+  """
+  updateCustomFieldDefinition("The custom field definition update input." input: UpdateCustomFieldDefinitionInput!): CustomFieldDefinition! @authorize(policy: "Administrator") @cost(weight: "10")
+  """
+  Deletes a custom field definition (admin only).
+  
+  
+  **Returns:**
+  True if the field was deleted, false if it was not found.
+  """
+  deleteCustomFieldDefinition("The ID of the custom field definition to delete." id: ID!): Boolean! @authorize(policy: "Administrator") @cost(weight: "10")
+  """
+  Updates a hub configuration for the specified context and scope (admin only).
+  
+  
+  **Returns:**
+  The updated hub configuration.
+  """
+  updateHubConfiguration("The hub configuration update request." input: UpdateHubConfigurationInput!): HubConfiguration! @authorize(policy: "Administrator") @cost(weight: "10")
+  """
+  Updates a metadata item with the specified fields, respecting locked field settings.
+  
+  
+  **Returns:**
+  Payload indicating success and the updated item.
+  """
+  updateMetadataItem("The update input containing the item ID and fields to update." input: UpdateMetadataItemInput!): UpdateMetadataItemPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Starts playback for a metadata item.
+  
+  
+  **Returns:**
+  The created playback session details.
+  """
+  startPlayback("Playback start details." input: PlaybackStartInput!): PlaybackStartPayload! @authorize @cost(weight: "10")
+  """
+  Records a playback heartbeat for the active session.
+  
+  
+  **Returns:**
+  Heartbeat acknowledgement payload.
+  """
+  playbackHeartbeat("Heartbeat payload." input: PlaybackHeartbeatInput!): PlaybackHeartbeatPayload! @authorize @cost(weight: "10")
+  """
+  Requests a playback decision for the current session.
+  
+  
+  **Returns:**
+  The decision payload.
+  """
+  decidePlayback("Decision payload." input: PlaybackDecisionInput!): PlaybackDecisionPayload! @authorize @cost(weight: "10")
+  """
+  Attempts to resume a playback session by identifier.
+  
+  
+  **Returns:**
+  Resume details for the session.
+  """
+  resumePlayback("Resume payload." input: PlaybackResumeInput!): PlaybackResumePayload! @authorize @cost(weight: "10")
+  """
+  Stops an active playback session and cleans up associated resources.
+  
+  
+  **Returns:**
+  Acknowledgement payload.
+  """
+  stopPlayback("Stop payload." input: PlaybackStopInput!): PlaybackStopPayload! @authorize @cost(weight: "10")
+  """
+  Notifies the server of a seek operation and returns the nearest keyframe position.
+  Used to optimize transcoding/remuxing by seeking to keyframe boundaries.
+  
+  
+  **Returns:**
+  The seek payload with the nearest keyframe position.
+  """
+  playbackSeek("Seek notification payload." input: PlaybackSeekInput!): PlaybackSeekPayload! @authorize @cost(weight: "10")
+  """
+  Navigates to the next item in the playlist.
+  
+  
+  **Returns:**
+  The navigation payload with the next item.
+  """
+  playlistNext("The navigation input." input: PlaylistNavigateInput!): PlaylistNavigatePayload! @authorize @cost(weight: "10")
+  """
+  Navigates to the previous item in the playlist.
+  
+  
+  **Returns:**
+  The navigation payload with the previous item.
+  """
+  playlistPrevious("The navigation input." input: PlaylistNavigateInput!): PlaylistNavigatePayload! @authorize @cost(weight: "10")
+  """
+  Jumps to a specific index in the playlist.
+  
+  
+  **Returns:**
+  The navigation payload with the item at the specified index.
+  """
+  playlistJump("The jump input with target index." input: PlaylistJumpInput!): PlaylistNavigatePayload! @authorize @cost(weight: "10")
+  """
+  Sets shuffle mode on the playlist.
+  
+  
+  **Returns:**
+  The navigation payload with updated state.
+  """
+  playlistSetShuffle("The mode input with enabled flag." input: PlaylistModeInput!): PlaylistNavigatePayload! @authorize @cost(weight: "10")
+  """
+  Sets repeat mode on the playlist.
+  
+  
+  **Returns:**
+  The navigation payload with updated state.
+  """
+  playlistSetRepeat("The mode input with enabled flag." input: PlaylistModeInput!): PlaylistNavigatePayload! @authorize @cost(weight: "10")
+  """
+  Initiates a graceful server shutdown. Container orchestrators (Docker, systemd, etc.) will auto-restart the service.
+  
+  
+  **Returns:**
+  True if shutdown was initiated successfully.
+  """
+  restartServer: Boolean! @authorize(roles: [ "Administrator" ])
+  """
+  Updates server-wide configuration settings. Only specified fields are updated.
+  
+  
+  **Returns:**
+  The updated server settings.
+  """
+  updateServerSettings("The settings to update." input: UpdateServerSettingsInput!): ServerSettingsPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Updates transcode settings (admin only).
+  
+  
+  **Returns:**
+  The updated transcode settings.
+  """
+  updateTranscodeSettings("The transcode settings to update." input: UpdateTranscodeSettingsInput!): TranscodeSettingsPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+}
+
+"Information about pagination in a connection."
+type PageInfo {
+  "Indicates whether more edges exist following the set defined by the clients arguments."
+  hasNextPage: Boolean!
+  "Indicates whether more edges exist prior the set defined by the clients arguments."
+  hasPreviousPage: Boolean!
+  "When paginating backwards, the cursor to continue."
+  startCursor: String
+  "When paginating forwards, the cursor to continue."
+  endCursor: String
+}
+
+"GraphQL payload describing the server decision for playback continuation."
+type PlaybackDecisionPayload {
+  "Gets the action the client should take."
+  action: String!
+  "Gets the serialized stream plan for the next item."
+  streamPlanJson: String!
+  "Gets the next metadata item identifier."
+  nextItemId: ID
+  "Gets the title of the next item."
+  nextItemTitle: String
+  "Gets the original title of the next item (e.g., artist name for tracks)."
+  nextItemOriginalTitle: String
+  "Gets the parent title of the next item (e.g., album name for tracks)."
+  nextItemParentTitle: String
+  "Gets the thumbnail URL of the next item."
+  nextItemThumbUrl: String
+  "Gets the URL the client should load for the decided item."
+  playbackUrl: String!
+  "Gets the trickplay thumbnail track URL when available."
+  trickplayUrl: String
+  "Gets the latest capability profile version known to the server."
+  capabilityProfileVersion: Int!
+  "Gets a value indicating whether the client should refresh capabilities."
+  capabilityVersionMismatch: Boolean!
+  query: Query!
+}
+
+"GraphQL payload returned after recording a playback heartbeat."
+type PlaybackHeartbeatPayload {
+  "Gets the playback session identifier."
+  playbackSessionId: UUID!
+  "Gets the latest capability profile version known to the server."
+  capabilityProfileVersion: Int!
+  "Gets a value indicating whether the client should refresh capabilities."
+  capabilityVersionMismatch: Boolean!
+  query: Query!
+}
+
+"GraphQL payload returned when resuming an existing playback session."
+type PlaybackResumePayload {
+  "Gets the playback session identifier."
+  playbackSessionId: UUID!
+  "Gets the current metadata item identifier."
+  currentItemId: ID!
+  "Gets the playlist generator identifier."
+  playlistGeneratorId: UUID!
+  "Gets the current playhead in milliseconds."
+  playheadMs: Long!
+  "Gets the current playback state."
+  state: String!
+  "Gets the latest capability profile version known to the server."
+  capabilityProfileVersion: Int!
+  "Gets a value indicating whether the client should refresh capabilities."
+  capabilityVersionMismatch: Boolean!
+  "Gets the serialized stream plan for the current playback."
+  streamPlanJson: String!
+  "Gets the playback URL the client should load when resuming."
+  playbackUrl: String!
+  "Gets the trickplay track URL when available."
+  trickplayUrl: String
+  "Gets the duration of the media item in milliseconds."
+  durationMs: Long
+  query: Query!
+}
+
+"""
+Payload returned after processing a seek notification.
+Contains the nearest keyframe position for optimal seeking during transcoding/remuxing.
+"""
+type PlaybackSeekPayload {
+  """
+  Gets the nearest keyframe position in milliseconds.
+  This is the position the transcoder/remuxer will seek to for faster feedback.
+  """
+  keyframeMs: Long!
+  "Gets the duration of the keyframe's group of pictures in milliseconds."
+  gopDurationMs: Long!
+  """
+  Gets a value indicating whether a GoP index was available for this seek.
+  When false, KeyframeMs equals the original target position.
+  """
+  hasGopIndex: Boolean!
+  "Gets the original requested seek position in milliseconds."
+  originalTargetMs: Long!
+  query: Query!
+}
+
+"GraphQL payload returned after starting playback."
+type PlaybackStartPayload {
+  "Gets the current item's identifier (public UUID)."
+  currentItemId: ID
+  "Gets the metadata type of the current item."
+  currentItemMetadataType: String!
+  "Gets the title of the current item being played."
+  currentItemTitle: String
+  "Gets the original title (e.g., artist) of the current item being played."
+  currentItemOriginalTitle: String
+  "Gets the parent title (e.g., album) of the current item being played."
+  currentItemParentTitle: String
+  "Gets the thumbnail URL of the current item being played."
+  currentItemThumbUrl: String
+  "Gets the parent thumbnail URL of the current item being played."
+  currentItemParentThumbUrl: String
+  "Gets the playback session identifier."
+  playbackSessionId: UUID!
+  "Gets the playlist generator identifier."
+  playlistGeneratorId: UUID!
+  "Gets the capability profile version the server used."
+  capabilityProfileVersion: Int!
+  "Gets the serialized stream plan for the current item."
+  streamPlanJson: String!
+  "Gets the URL the client should load to start playback."
+  playbackUrl: String!
+  "Gets the trickplay thumbnail track URL when available."
+  trickplayUrl: String
+  "Gets the duration of the media item in milliseconds."
+  durationMs: Long
+  "Gets a value indicating whether the client should refresh capabilities."
+  capabilityVersionMismatch: Boolean!
+  "Gets the current index within the playlist (0-based)."
+  playlistIndex: Int!
+  "Gets the total number of items in the playlist."
+  playlistTotalCount: Int!
+  "Gets a value indicating whether shuffle mode is enabled."
+  shuffle: Boolean!
+  "Gets a value indicating whether repeat mode is enabled."
+  repeat: Boolean!
+  query: Query!
+}
+
+"Payload returned after stopping a playback session."
+type PlaybackStopPayload {
+  "Gets a value indicating whether the playback session was stopped."
+  success: Boolean!
+  query: Query!
+}
+
+"GraphQL payload containing a chunk of playlist items."
+type PlaylistChunkPayload {
+  "Gets or sets the playlist generator identifier."
+  playlistGeneratorId: UUID!
+  "Gets or sets the items in this chunk."
+  items: [PlaylistItemPayload!]!
+  "Gets or sets the current cursor position (0-based index of the currently playing item)."
+  currentIndex: Int!
+  """
+  Gets or sets the total number of items in the playlist.
+  -1 indicates the total is unknown (e.g., for infinite/dynamic playlists).
+  """
+  totalCount: Int!
+  "Gets or sets a value indicating whether there are more items available after this chunk."
+  hasMore: Boolean!
+  "Gets or sets a value indicating whether shuffle mode is enabled."
+  shuffle: Boolean!
+  "Gets or sets a value indicating whether repeat mode is enabled."
+  repeat: Boolean!
+}
+
+"GraphQL payload representing a single playlist item."
+type PlaylistItemPayload {
+  "Gets or sets the unique identifier of the playlist item entry."
+  itemEntryId: Int!
+  "Gets or sets the public UUID of the metadata item."
+  itemId: ID!
+  "Gets or sets the 0-based index of this item within the playlist."
+  index: Int!
+  "Gets or sets a value indicating whether this item has been served to the client."
+  served: Boolean!
+  "Gets or sets the title of the item."
+  title: String!
+  "Gets or sets the metadata type (Movie, Episode, Track, etc.)."
+  metadataType: String!
+  "Gets or sets the duration in milliseconds, if known."
+  durationMs: Long
+  "Gets or sets the thumbnail URI for the item."
+  thumbUri: String
+  "Gets or sets the parent title (e.g., album for tracks, show for episodes)."
+  parentTitle: String
+  "Gets or sets additional context like episode number or track number."
+  subtitle: String
+  "Gets or sets the playback URL for this playlist entry when precomputed (e.g., images)."
+  playbackUrl: String
+  "Gets or sets the primary person (e.g., artist for tracks, director for movies)."
+  primaryPerson: Item
+}
+
+"Payload returned after navigating in a playlist or changing modes."
+type PlaylistNavigatePayload {
+  "Gets or sets a value indicating whether the operation succeeded."
+  success: Boolean!
+  "Gets or sets the current playlist item after navigation."
+  currentItem: PlaylistItemPayload
+  "Gets or sets a value indicating whether shuffle mode is enabled."
+  shuffle: Boolean!
+  "Gets or sets a value indicating whether repeat mode is enabled."
+  repeat: Boolean!
+  "Gets or sets the current cursor position."
+  currentIndex: Int!
+  "Gets or sets the total count of items in the playlist."
+  totalCount: Int!
+  query: Query!
+}
+
+"GraphQL payload indicating the outcome of a promote\/unpromote request."
+type PromoteItemPayload {
+  "Gets a value indicating whether the request succeeded."
+  success: Boolean!
+  "Gets an optional error description for failed requests."
+  error: String
+  query: Query!
+}
+
+"Defines GraphQL query operations for search."
+type Query {
+  "Fetches an object given its ID."
+  node("ID of the object." id: ID!): Node @lookup @shareable @cost(weight: "10")
+  "Lookup nodes by a list of IDs."
+  nodes("The list of node IDs." ids: [ID!]!): [Node]! @cost(weight: "10")
+  """
+  Retrieves a hub configuration for the given context and scope (admin only).
+  
+  
+  **Returns:**
+  The stored hub configuration if found; otherwise null.
+  """
+  hubConfiguration("The configuration scope." input: HubConfigurationScopeInput!): HubConfiguration @authorize(policy: "Administrator") @cost(weight: "10")
+  """
+  Retrieves the admin-defined detail field configuration for a metadata type and optional library scope (admin only).
+  
+  
+  **Returns:**
+  The stored configuration if found; otherwise null.
+  """
+  adminDetailFieldConfiguration("The configuration scope." input: DetailFieldConfigurationScopeInput!): DetailFieldConfiguration @authorize(policy: "Administrator") @cost(weight: "10")
+  """
+  Gets basic server information like version and environment.
+  
+  
+  **Returns:**
+  The server info object.
+  """
+  serverInfo: ServerInfo!
+  """
+  Gets a library section by its global Relay ID.
+  
+  
+  **Returns:**
+  A single LibrarySection.
+  """
+  librarySection("The Relay global ID for LibrarySection." id: ID!): LibrarySection @authorize @cost(weight: "10")
+  """
+  Gets a paginated list of library sections.
+  
+  
+  **Returns:**
+  A connection of LibrarySections.
+  """
+  librarySections("Returns the first _n_ elements from the list." first: Int "Returns the elements in the list that come after the specified cursor." after: String "Returns the last _n_ elements from the list." last: Int "Returns the elements in the list that come before the specified cursor." before: String where: LibrarySectionFilterInput @cost(weight: "10") order: [LibrarySectionSortInput!] @cost(weight: "10")): LibrarySectionsConnection @authorize @listSize(assumedSize: 50, slicingArguments: [ "first", "last" ], slicingArgumentDefaultValue: 50, sizedFields: [ "edges", "nodes" ], requireOneSlicingArgument: false) @cost(weight: "10")
+  """
+  Gets a metadata item.
+  
+  
+  **Returns:**
+  A metadata item instance.
+  """
+  metadataItem("The identifier of the metadata item." id: ID!): Item @authorize @cost(weight: "10")
+  """
+  Gets a collection of metadata items.
+  
+  
+  **Returns:**
+  A collection of metadata items.
+  """
+  metadataItems("Returns the first _n_ elements from the list." first: Int "Returns the elements in the list that come after the specified cursor." after: String "Returns the last _n_ elements from the list." last: Int "Returns the elements in the list that come before the specified cursor." before: String where: ItemFilterInput @cost(weight: "10") order: [ItemSortInput!] @cost(weight: "10")): MetadataItemsConnection @authorize @listSize(assumedSize: 50, slicingArguments: [ "first", "last" ], slicingArgumentDefaultValue: 10, sizedFields: [ "edges", "nodes" ], requireOneSlicingArgument: false) @cost(weight: "10")
+  """
+  Lists filesystem roots (drives, mounts) that can be browsed for library creation.
+  
+  
+  **Returns:**
+  A collection of filesystem roots.
+  """
+  fileSystemRoots: [FileSystemRoot!]! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Browses a directory path, returning child entries, while ensuring access restrictions.
+  
+  
+  **Returns:**
+  The directory listing for the requested path.
+  """
+  browseDirectory("The absolute path to inspect." path: String!): DirectoryListing! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Gets all active job notifications for bootstrapping client state.
+  Active jobs are those with status Pending or Running.
+  
+  
+  **Returns:**
+  A collection of active job notifications.
+  """
+  activeJobNotifications: [JobNotification!]! @authorize @cost(weight: "10")
+  """
+  Gets field definitions for a metadata item's detail page.
+  
+  
+  **Returns:**
+  A collection of field definitions.
+  """
+  itemDetailFieldDefinitions("The metadata item ID." itemId: ID!): [DetailFieldDefinition!]! @authorize @cost(weight: "10")
+  """
+  Gets field definitions for a specific metadata type.
+  
+  
+  **Returns:**
+  A collection of field definitions.
+  """
+  fieldDefinitionsForType("The metadata type." metadataType: MetadataType!): [DetailFieldDefinition!]! @authorize @cost(weight: "10")
+  """
+  Gets all custom field definitions (admin only).
+  
+  
+  **Returns:**
+  A collection of custom field definitions.
+  """
+  customFieldDefinitions: [CustomFieldDefinition!]! @authorize(policy: "Administrator") @cost(weight: "10")
+  """
+  Gets hub definitions for the home page (aggregated from user's accessible libraries).
+  
+  
+  **Returns:**
+  A collection of hub definitions.
+  """
+  homeHubDefinitions: [HubDefinition!]! @authorize @cost(weight: "10")
+  """
+  Gets hub definitions for a library's discover page.
+  
+  
+  **Returns:**
+  A collection of hub definitions.
+  """
+  libraryDiscoverHubDefinitions("The library section ID." librarySectionId: ID!): [HubDefinition!]! @authorize @cost(weight: "10")
+  """
+  Gets hub definitions for an item's detail page.
+  
+  
+  **Returns:**
+  A collection of hub definitions.
+  """
+  itemDetailHubDefinitions("The metadata item ID." itemId: ID!): [HubDefinition!]! @authorize @cost(weight: "10")
+  """
+  Gets hub items for a specific hub type and context.
+  
+  
+  **Returns:**
+  A list of metadata items.
+  """
+  hubItems("The hub items query input." input: GetHubItemsInput!): [Item!]! @authorize @cost(weight: "10")
+  """
+  Gets hub people for a specific hub type.
+  
+  
+  **Returns:**
+  A list of metadata items representing people.
+  """
+  hubPeople("The type of hub (Cast or Crew)." hubType: HubType! "The metadata item ID." metadataItemId: ID!): [Item!]! @authorize @cost(weight: "10")
+  """
+  Gets all available metadata agents, sidecar parsers, and embedded metadata extractors.
+  Optionally filtered by library type.
+  
+  
+  **Returns:**
+  A list of available metadata agents.
+  """
+  availableMetadataAgents("Optional library type to filter agents that support it." libraryType: LibraryType): [MetadataAgentInfo!]! @authorize
+  """
+  Retrieves a chunk of playlist items.
+  
+  
+  **Returns:**
+  The playlist chunk payload.
+  """
+  playlistChunk("The chunk request parameters." input: PlaylistChunkInput!): PlaylistChunkPayload! @authorize @cost(weight: "10")
+  """
+  Gets the current server-wide configuration settings.
+  
+  
+  **Returns:**
+  The current server settings.
+  """
+  serverSettings: ServerSettingsPayload! @authorize(roles: [ "Administrator" ]) @cost(weight: "10")
+  """
+  Gets the current transcode settings and detected hardware capabilities (admin only).
+  
+  
+  **Returns:**
+  The current transcode settings.
+  """
+  transcodeSettings: TranscodeSettingsPayload! @authorize(roles: [ "Administrator" ])
+  """
+  Gets the detected FFmpeg capabilities and hardware acceleration recommendations (admin only).
+  
+  
+  **Returns:**
+  The detected FFmpeg capabilities.
+  """
+  ffmpegCapabilities: FfmpegCapabilitiesPayload! @authorize(roles: [ "Administrator" ])
+  """
+  Searches for metadata items matching the specified query.
+  
+  
+  **Returns:**
+  A list of search results ordered by relevance.
+  """
+  search("The search query string." query: String! "The type of content to filter by. Defaults to Top (all types)." pivot: SearchPivot! = TOP "The maximum number of results to return. Defaults to 25." limit: Int! = 25): [SearchResult!]! @authorize @cost(weight: "10")
+}
+
+"GraphQL payload indicating the outcome of a metadata refresh request."
+type RefreshMetadataPayload {
+  "Gets a value indicating whether the request succeeded."
+  success: Boolean!
+  "Gets an optional error description for failed requests."
+  error: String
+  query: Query!
+}
+
+"GraphQL payload indicating the outcome of a library section removal request."
+type RemoveLibrarySectionPayload {
+  "Gets a value indicating whether the request succeeded."
+  success: Boolean!
+  "Gets an optional error description for failed requests."
+  error: String
+  query: Query!
+}
+
+"Represents a single result from a search query."
+type SearchResult {
+  "Gets the unique identifier of the metadata item."
+  id: ID!
+  "Gets the title of the metadata item."
+  title: String!
+  "Gets the type of the metadata item."
+  metadataType: MetadataType!
+  "Gets the relevance score of the search result."
+  score: Float!
+  "Gets the release year of the metadata item, if available."
+  year: Int
+  "Gets the thumbnail URL of the metadata item, if available."
+  thumbUri: String
+  "Gets the library section ID of the metadata item."
+  librarySectionId: ID!
+}
+
+"Represents server runtime information for client display."
+type ServerInfo {
+  "Gets the semantic version string of the running server build."
+  versionString: String!
+  "Gets a value indicating whether the server is running in Development environment."
+  isDevelopment: Boolean!
+}
+
+"Payload containing server-wide configuration settings."
+type ServerSettingsPayload {
+  "The friendly display name of the server."
+  serverName: String!
+  "Maximum streaming bitrate in bits per second."
+  maxStreamingBitrate: Int!
+  "Whether to prefer H.265 (HEVC) codec for video transcoding."
+  preferH265: Boolean!
+  "Whether to allow remuxing (container change without re-encoding)."
+  allowRemuxing: Boolean!
+  "Whether to allow HEVC encoding when transcoding video."
+  allowHEVCEncoding: Boolean!
+  "Default video codec for DASH transcoding."
+  dashVideoCodec: String!
+  "Default audio codec for DASH transcoding."
+  dashAudioCodec: String!
+  "DASH segment duration in seconds."
+  dashSegmentDurationSeconds: Int!
+  "Whether tone mapping is enabled for HDR content."
+  enableToneMapping: Boolean!
+  "User's preferred hardware acceleration (null = auto-detect)."
+  userPreferredAcceleration: HardwareAccelerationKind
+  "List of allowed tags (empty = no allowlist)."
+  allowedTags: [String!]!
+  "List of blocked tags (empty = no blocklist)."
+  blockedTags: [String!]!
+  "Genre normalization mappings (input → canonical)."
+  genreMappings: [KeyValuePairOfStringAndString!]!
+  "Minimum log level (Debug, Information, Warning, Error, Fatal)."
+  logLevel: String!
+  query: Query!
+}
+
+"GraphQL payload indicating the outcome of a library scan request."
+type StartLibraryScanPayload {
+  "Gets a value indicating whether the request succeeded."
+  success: Boolean!
+  "Gets the scan job identifier."
+  scanId: Int
+  "Gets an optional error description for failed requests."
+  error: String
+  query: Query!
+}
+
+"Defines GraphQL subscription operations for the API."
+type Subscription {
+  """
+  Streams metadata items as they are updated. Clients receive the full mapped metadata item.
+  
+  
+  **Returns:**
+  The updated metadata item mapped to the API type, or null if not found.
+  """
+  onMetadataItemUpdated: Item @authorize @cost(weight: "10")
+  """
+  Streams job notifications for background tasks such as library scans and metadata refresh.
+  Clients receive real-time updates about job progress and completion.
+  
+  
+  **Returns:**
+  The job notification with progress information.
+  """
+  onJobNotification: JobNotification! @authorize @cost(weight: "10")
+}
+
+"Payload returned after updating or retrieving transcode settings."
+type TranscodeSettingsPayload {
+  "The currently active hardware acceleration."
+  effectiveAcceleration: HardwareAccelerationKind!
+  "The system-recommended hardware acceleration for this platform."
+  recommendedAcceleration: HardwareAccelerationKind!
+  "The user's manually specified preference (null = auto)."
+  userPreferredAcceleration: HardwareAccelerationKind
+  "Dictionary of detected hardware acceleration capabilities."
+  detectedCapabilities: [KeyValuePairOfStringAndBoolean!]!
+  "List of available FFmpeg encoders."
+  availableEncoders: [String!]!
+  "List of available FFmpeg filters."
+  availableFilters: [String!]!
+  "Whether tone mapping is enabled."
+  enableToneMapping: Boolean!
+  "Default video codec for DASH transcoding."
+  dashVideoCodec: String!
+  "Default audio codec for DASH transcoding."
+  dashAudioCodec: String!
+  "DASH segment duration in seconds."
+  dashSegmentDurationSeconds: Int!
+  query: Query!
+}
+
+"Payload returned after updating a metadata item."
+type UpdateMetadataItemPayload {
+  "Whether the operation was successful."
+  success: Boolean!
+  "The updated metadata item."
+  item: Item
+  "Error message if the operation failed."
+  error: String
+  query: Query!
+}
+
+"Represents the input required to create a library section."
+input AddLibrarySectionInput {
+  "Gets or sets the library name."
+  name: String!
+  "Gets or sets the library type."
+  type: LibraryType!
+  "Gets or sets the root paths associated with the library."
+  rootPaths: [String!]!
+  "Gets or sets the initial settings for the library section."
+  settings: LibrarySectionSettingsInput
+}
+
+"Input for triggering file analysis, GoP-index generation, and trickplay generation for a metadata item."
+input AnalyzeItemInput {
+  "Gets or sets the metadata item identifier."
+  itemId: ID!
+}
+
+input BooleanOperationFilterInput {
+  eq: Boolean @cost(weight: "10")
+  neq: Boolean @cost(weight: "10")
+}
+
+"GraphQL input describing codec-level constraints."
+input CodecProfileInput {
+  "Gets or sets the media type (Video\/Audio\/Photo)."
+  type: String!
+  "Gets or sets the codec this profile applies to, if limited."
+  codec: String
+  "Gets or sets the container restriction, if any."
+  container: String
+  "Gets or sets the conditions that must be satisfied."
+  conditions: [ProfileConditionInput!]!
+}
+
+"GraphQL input describing container-specific constraints."
+input ContainerProfileInput {
+  "Gets or sets the media type (Video\/Audio\/Photo)."
+  type: String!
+  "Gets or sets the conditions that gate support."
+  conditions: [ProfileConditionInput!]!
+}
+
+"Input type for creating a custom field definition."
+input CreateCustomFieldDefinitionInput {
+  "Gets or sets the unique key identifier for this field."
+  key: String!
+  "Gets or sets the display label for this field."
+  label: String!
+  "Gets or sets the widget type for rendering this field."
+  widget: DetailFieldWidgetType!
+  """
+  Gets or sets the metadata types this field applies to.
+  Empty list means the field applies to all metadata types.
+  """
+  applicableMetadataTypes: [MetadataType!]
+  "Gets or sets the display order of this field."
+  sortOrder: Int!
+}
+
+"Input describing the scope of a detail field configuration lookup."
+input DetailFieldConfigurationScopeInput {
+  "Gets or sets the metadata type the configuration applies to."
+  metadataType: MetadataType!
+  "Gets or sets the optional library section identifier for scoped overrides."
+  librarySectionId: ID
+}
+
+"Input for creating or updating a detail field group."
+input DetailFieldGroupInput {
+  "Gets or sets the unique key identifying this group."
+  groupKey: String!
+  "Gets or sets the display label for this group."
+  label: String!
+  "Gets or sets the layout type for rendering fields within this group."
+  layoutType: DetailFieldGroupLayoutType!
+  "Gets or sets the display order of this group."
+  sortOrder: Int!
+  "Gets or sets a value indicating whether this group can be collapsed by the user."
+  isCollapsible: Boolean!
+}
+
+"GraphQL input describing a direct-play capability."
+input DirectPlayProfileInput {
+  "Gets or sets the media type (Video\/Audio\/Photo)."
+  type: String!
+  "Gets or sets the supported container(s)."
+  container: String!
+  "Gets or sets the supported video codec, if constrained."
+  videoCodec: String
+  "Gets or sets the supported audio codec, if constrained."
+  audioCodec: String
+}
+
+input EpisodeSortOrderOperationFilterInput {
+  eq: EpisodeSortOrder @cost(weight: "10")
+  neq: EpisodeSortOrder @cost(weight: "10")
+  in: [EpisodeSortOrder!] @cost(weight: "10")
+  nin: [EpisodeSortOrder!] @cost(weight: "10")
+}
+
+"Input for an external identifier."
+input ExternalIdInput {
+  "The provider name (e.g., \"tmdb\", \"imdb\", \"tvdb\")."
+  provider: String!
+  "The identifier value from the provider."
+  value: String
+}
+
+"Input type for setting an extra field value on a metadata item."
+input ExtraFieldInput {
+  "Gets or sets the field key."
+  key: String!
+  "Gets or sets the field value as a JSON element."
+  value: Any
+}
+
+"Input for fetching hub items."
+input GetHubItemsInput {
+  "Gets the type of hub."
+  hubType: HubType!
+  "Gets the hub context."
+  context: HubContext!
+  "Gets the optional library section ID for library-specific hubs."
+  librarySectionId: ID
+  "Gets the optional metadata item ID for detail page hubs."
+  metadataItemId: ID
+  "Gets the optional filter value for filtered hubs."
+  filterValue: String
+}
+
+"Input describing the scope of a hub configuration lookup."
+input HubConfigurationScopeInput {
+  "Gets or sets the hub context being configured."
+  context: HubContext!
+  "Gets or sets the optional library section identifier for discover\/detail scopes."
+  librarySectionId: ID
+  "Gets or sets the optional metadata type for item detail configurations."
+  metadataType: MetadataType
+}
+
+input IdOperationFilterInput {
+  eq: ID @cost(weight: "10")
+  neq: ID @cost(weight: "10")
+  in: [ID] @cost(weight: "10")
+  nin: [ID] @cost(weight: "10")
+}
+
+input IntOperationFilterInput {
+  eq: Int @cost(weight: "10")
+  neq: Int @cost(weight: "10")
+  in: [Int] @cost(weight: "10")
+  nin: [Int] @cost(weight: "10")
+  gt: Int @cost(weight: "10")
+  ngt: Int @cost(weight: "10")
+  gte: Int @cost(weight: "10")
+  ngte: Int @cost(weight: "10")
+  lt: Int @cost(weight: "10")
+  nlt: Int @cost(weight: "10")
+  lte: Int @cost(weight: "10")
+  nlte: Int @cost(weight: "10")
+}
+
+"Representation of a metadata item for pagination queries."
+input ItemFilterInput {
+  and: [ItemFilterInput!]
+  or: [ItemFilterInput!]
+  "Gets the global Relay-compatible identifier of the metadata item."
+  id: IdOperationFilterInput
+  "Gets the type of the metadata item."
+  metadataType: MetadataTypeOperationFilterInput
+  "Gets the title of the metadata item."
+  title: StringOperationFilterInput
+  "Gets the sortable title of the metadata item."
+  titleSort: StringOperationFilterInput
+  "Gets the original title of the metadata item."
+  originalTitle: StringOperationFilterInput
+  "Gets the summary description of the metadata item."
+  summary: StringOperationFilterInput
+  "Gets the tagline of the metadata item."
+  tagline: StringOperationFilterInput
+  "Gets the content rating of the metadata item."
+  contentRating: StringOperationFilterInput
+  "Gets the year the metadata item was released."
+  year: IntOperationFilterInput
+  "Gets the date the metadata item was originally available."
+  originallyAvailableAt: LocalDateOperationFilterInput
+  "Gets the thumbnail URL of the metadata item."
+  thumbUri: StringOperationFilterInput
+  "Gets the ThumbHash placeholder for the thumbnail."
+  thumbHash: StringOperationFilterInput
+  "Gets the backdrop URL of the metadata item."
+  artUri: StringOperationFilterInput
+  "Gets the ThumbHash placeholder for the backdrop."
+  artHash: StringOperationFilterInput
+  "Gets the logo URL of the metadata item."
+  logoUri: StringOperationFilterInput
+  "Gets the ThumbHash placeholder for the logo."
+  logoHash: StringOperationFilterInput
+  "Gets the theme URL of the metadata item."
+  themeUrl: StringOperationFilterInput
+  "Gets the owning library section identifier (Relay GUID)."
+  librarySectionId: IdOperationFilterInput
+  "Gets the index of the metadata item."
+  index: IntOperationFilterInput
+  "Gets the length of the metadata item in milliseconds."
+  length: IntOperationFilterInput
+  "Gets the number of leaf items in the metadata item."
+  leafCount: IntOperationFilterInput
+  "Gets the list of genres associated with this metadata item."
+  genres: ListStringOperationFilterInput
+  "Gets the list of tags associated with this metadata item."
+  tags: ListStringOperationFilterInput
+  "Gets the list of field names that are locked from automatic updates."
+  lockedFields: ListStringOperationFilterInput
+  "Gets the number of child items in the metadata item."
+  childCount: IntOperationFilterInput
+  "Gets an optional context-specific string (e.g., role name for people in hubs)."
+  context: StringOperationFilterInput
+  "Gets a value indicating whether this item is promoted (featured in the Promoted hub)."
+  isPromoted: BooleanOperationFilterInput
+}
+
+"Representation of a metadata item for pagination queries."
+input ItemSortInput {
+  "Gets the sortable title of the metadata item."
+  title: SortEnumType @cost(weight: "10")
+  "Gets the year the metadata item was released."
+  year: SortEnumType @cost(weight: "10")
+}
+
+input KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput {
+  and: [KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput!]
+  or: [KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput!]
+  key: StringOperationFilterInput
+  value: ListFilterInputTypeOfKeyValuePairOfStringAndStringFilterInput
+}
+
+input KeyValuePairOfStringAndDictionaryOfStringAndStringInput {
+  key: String!
+  value: [KeyValuePairOfStringAndStringInput!]!
+}
+
+input KeyValuePairOfStringAndStringFilterInput {
+  and: [KeyValuePairOfStringAndStringFilterInput!]
+  or: [KeyValuePairOfStringAndStringFilterInput!]
+  key: StringOperationFilterInput
+  value: StringOperationFilterInput
+}
+
+input KeyValuePairOfStringAndStringInput {
+  key: String!
+  value: String!
+}
+
+"Representation of a library section for GraphQL queries."
+input LibrarySectionFilterInput {
+  and: [LibrarySectionFilterInput!]
+  or: [LibrarySectionFilterInput!]
+  "Gets the global Relay-compatible identifier of the library section."
+  id: IdOperationFilterInput
+  "Gets the display name of the library section."
+  name: StringOperationFilterInput
+  "Gets the sortable name of the library section."
+  sortName: StringOperationFilterInput
+  "Gets the type of the library section."
+  type: LibraryTypeOperationFilterInput
+  "Gets the list of root locations for the library section."
+  locations: ListStringOperationFilterInput
+  "Gets the settings for this library section."
+  settings: LibrarySectionSettingsFilterInput
+}
+
+"GraphQL representation of per-library settings."
+input LibrarySectionSettingsFilterInput {
+  and: [LibrarySectionSettingsFilterInput!]
+  or: [LibrarySectionSettingsFilterInput!]
+  "Gets the preferred metadata language (BCP-47), e.g. \"en\", \"de-DE\"."
+  preferredMetadataLanguage: StringOperationFilterInput
+  "Gets the ordered list of metadata agent identifiers to use."
+  metadataAgentOrder: ListStringOperationFilterInput
+  "Gets the list of metadata agent identifiers that are disabled for this library."
+  disabledMetadataAgents: ListStringOperationFilterInput
+  "Gets a value indicating whether to hide seasons for single-season series."
+  hideSeasonsForSingleSeasonSeries: BooleanOperationFilterInput
+  "Gets the episode sort order preference for episodic content."
+  episodeSortOrder: EpisodeSortOrderOperationFilterInput
+  "Gets the preferred audio languages (ordered)."
+  preferredAudioLanguages: ListStringOperationFilterInput
+  "Gets the preferred subtitle languages (ordered)."
+  preferredSubtitleLanguages: ListStringOperationFilterInput
+  "Gets the map of metadata agent specific settings: agentId -> (key -> value)."
+  metadataAgentSettings: ListFilterInputTypeOfKeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput
+}
+
+"GraphQL representation of per-library settings."
+input LibrarySectionSettingsInput {
+  "Gets the preferred metadata language (BCP-47), e.g. \"en\", \"de-DE\"."
+  preferredMetadataLanguage: String!
+  "Gets the ordered list of metadata agent identifiers to use."
+  metadataAgentOrder: [String!]!
+  "Gets the list of metadata agent identifiers that are disabled for this library."
+  disabledMetadataAgents: [String!]!
+  "Gets a value indicating whether to hide seasons for single-season series."
+  hideSeasonsForSingleSeasonSeries: Boolean!
+  "Gets the episode sort order preference for episodic content."
+  episodeSortOrder: EpisodeSortOrder!
+  "Gets the preferred audio languages (ordered)."
+  preferredAudioLanguages: [String!]!
+  "Gets the preferred subtitle languages (ordered)."
+  preferredSubtitleLanguages: [String!]!
+  "Gets the map of metadata agent specific settings: agentId -> (key -> value)."
+  metadataAgentSettings: [KeyValuePairOfStringAndDictionaryOfStringAndStringInput!]!
+}
+
+"GraphQL representation of per-library settings."
+input LibrarySectionSettingsSortInput {
+  "Gets the preferred metadata language (BCP-47), e.g. \"en\", \"de-DE\"."
+  preferredMetadataLanguage: SortEnumType @cost(weight: "10")
+  "Gets a value indicating whether to hide seasons for single-season series."
+  hideSeasonsForSingleSeasonSeries: SortEnumType @cost(weight: "10")
+  "Gets the episode sort order preference for episodic content."
+  episodeSortOrder: SortEnumType @cost(weight: "10")
+}
+
+"Representation of a library section for GraphQL queries."
+input LibrarySectionSortInput {
+  "Gets the global Relay-compatible identifier of the library section."
+  id: SortEnumType @cost(weight: "10")
+  "Gets the display name of the library section."
+  name: SortEnumType @cost(weight: "10")
+  "Gets the sortable name of the library section."
+  sortName: SortEnumType @cost(weight: "10")
+  "Gets the type of the library section."
+  type: SortEnumType @cost(weight: "10")
+  "Gets the settings for this library section."
+  settings: LibrarySectionSettingsSortInput @cost(weight: "10")
+}
+
+input LibraryTypeOperationFilterInput {
+  eq: LibraryType @cost(weight: "10")
+  neq: LibraryType @cost(weight: "10")
+  in: [LibraryType!] @cost(weight: "10")
+  nin: [LibraryType!] @cost(weight: "10")
+}
+
+input ListFilterInputTypeOfKeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput {
+  all: KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput @cost(weight: "10")
+  none: KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput @cost(weight: "10")
+  some: KeyValuePairOfStringAndDictionaryOfStringAndStringFilterInput @cost(weight: "10")
+  any: Boolean @cost(weight: "10")
+}
+
+input ListFilterInputTypeOfKeyValuePairOfStringAndStringFilterInput {
+  all: KeyValuePairOfStringAndStringFilterInput @cost(weight: "10")
+  none: KeyValuePairOfStringAndStringFilterInput @cost(weight: "10")
+  some: KeyValuePairOfStringAndStringFilterInput @cost(weight: "10")
+  any: Boolean @cost(weight: "10")
+}
+
+input ListStringOperationFilterInput {
+  all: StringOperationFilterInput @cost(weight: "10")
+  none: StringOperationFilterInput @cost(weight: "10")
+  some: StringOperationFilterInput @cost(weight: "10")
+  any: Boolean @cost(weight: "10")
+}
+
+input LocalDateOperationFilterInput {
+  eq: LocalDate @cost(weight: "10")
+  neq: LocalDate @cost(weight: "10")
+  in: [LocalDate] @cost(weight: "10")
+  nin: [LocalDate] @cost(weight: "10")
+  gt: LocalDate @cost(weight: "10")
+  ngt: LocalDate @cost(weight: "10")
+  gte: LocalDate @cost(weight: "10")
+  ngte: LocalDate @cost(weight: "10")
+  lt: LocalDate @cost(weight: "10")
+  nlt: LocalDate @cost(weight: "10")
+  lte: LocalDate @cost(weight: "10")
+  nlte: LocalDate @cost(weight: "10")
+}
+
+"Input for locking fields on a metadata item."
+input LockMetadataFieldsInput {
+  "The UUID of the metadata item to lock fields on."
+  itemId: ID!
+  "The field names to lock. Use constants from MetadataFieldNames for built-in fields."
+  fields: [String!]!
+}
+
+input MetadataTypeOperationFilterInput {
+  eq: MetadataType @cost(weight: "10")
+  neq: MetadataType @cost(weight: "10")
+  in: [MetadataType!] @cost(weight: "10")
+  nin: [MetadataType!] @cost(weight: "10")
+}
+
+"GraphQL input type describing client playback capabilities."
+input PlaybackCapabilitiesInput {
+  "Gets or sets the maximum streaming bitrate (bits per second)."
+  maxStreamingBitrate: Int
+  "Gets or sets the maximum static download bitrate (bits per second)."
+  maxStaticBitrate: Int
+  "Gets or sets the preferred music transcoding bitrate (bits per second)."
+  musicStreamingTranscodingBitrate: Int
+  "Gets or sets the direct-play formats the client can handle."
+  directPlayProfiles: [DirectPlayProfileInput!]!
+  "Gets or sets the acceptable transcoding targets."
+  transcodingProfiles: [TranscodingProfileInput!]!
+  "Gets or sets container-level constraints."
+  containerProfiles: [ContainerProfileInput!]!
+  "Gets or sets codec-specific constraints."
+  codecProfiles: [CodecProfileInput!]!
+  "Gets or sets subtitle delivery capabilities."
+  subtitleProfiles: [SubtitleProfileInput!]!
+  "Gets or sets response overrides for certain media types."
+  responseProfiles: [ResponseProfileInput!]!
+  "Gets or sets the image formats the client can render without server-side resizing."
+  supportedImageFormats: [String!]!
+  "Gets or sets a value indicating whether DASH playback is supported."
+  supportsDash: Boolean
+  "Gets or sets a value indicating whether HLS playback is supported."
+  supportsHls: Boolean
+  "Gets or sets a value indicating whether the device can render HDR natively."
+  supportsHdr: Boolean
+  "Gets or sets a value indicating whether tone mapping is acceptable for the device."
+  allowToneMapping: Boolean
+}
+
+"Client capability declaration supplied with playback operations."
+input PlaybackCapabilityInput {
+  "Gets or sets the client device identifier."
+  deviceId: String
+  "Gets or sets a friendly device name."
+  name: String
+  "Gets or sets the structured playback capabilities payload."
+  capabilities: PlaybackCapabilitiesInput!
+  "Gets or sets the explicit version the client wants to use."
+  version: Int
+}
+
+"Input payload used when the client requests a playback decision."
+input PlaybackDecisionInput {
+  "Gets or sets the playback session identifier."
+  playbackSessionId: UUID!
+  "Gets or sets the current metadata item identifier."
+  currentItemId: ID!
+  "Gets or sets the current playback status."
+  status: String!
+  "Gets or sets the current progress in milliseconds."
+  progressMs: Long!
+  "Gets or sets the capability profile version the client is using."
+  capabilityProfileVersion: Int
+  "Gets or sets an optional capability declaration to upsert."
+  capability: PlaybackCapabilityInput
+  "Gets or sets the target playlist index when status is \"jump\"."
+  jumpIndex: Int
+}
+
+"Input payload used when sending playback heartbeats."
+input PlaybackHeartbeatInput {
+  "Gets or sets the playback session identifier."
+  playbackSessionId: UUID!
+  "Gets or sets the playhead position in milliseconds."
+  playheadMs: Long!
+  "Gets or sets the playback state."
+  state: String!
+  "Gets or sets the current media part identifier, if known."
+  mediaPartId: Int
+  "Gets or sets the capability profile version the client is using."
+  capabilityProfileVersion: Int
+  "Gets or sets an optional capability declaration to upsert."
+  capability: PlaybackCapabilityInput
+}
+
+"Input payload used to resume an existing playback session."
+input PlaybackResumeInput {
+  "Gets or sets the playback session identifier."
+  playbackSessionId: UUID!
+  "Gets or sets the capability profile version the client is using."
+  capabilityProfileVersion: Int
+  "Gets or sets an optional capability declaration to upsert."
+  capability: PlaybackCapabilityInput
+}
+
+"""
+Input payload for notifying the server of a seek operation during playback.
+Used to obtain the nearest keyframe position for optimal transcoding/remuxing.
+"""
+input PlaybackSeekInput {
+  "Gets or sets the playback session identifier."
+  playbackSessionId: UUID!
+  "Gets or sets the target seek position in milliseconds."
+  targetMs: Long!
+  "Gets or sets the current media part identifier."
+  mediaPartId: Int!
+}
+
+"Input payload used to start playback for a metadata item."
+input PlaybackStartInput {
+  """
+  Gets or sets the metadata item identifier to start playing.
+  For single item playback, this is the item to play.
+  For container playback (album, show), this can be the specific child to start with.
+  """
+  itemId: ID!
+  """
+  Gets or sets an optional originator identifier for container-based playlists.
+  When playing an album track or show episode, set this to the parent container ID
+  to enable playlist navigation through all items in the container.
+  """
+  originatorId: ID
+  """
+  Gets or sets the playlist type. Defaults to "single" for single item playback.
+  Supported values: "single", "album", "season", "show", "artist", "library", "explicit".
+  """
+  playlistType: String!
+  "Gets or sets a value indicating whether shuffle mode should be enabled for the playlist."
+  shuffle: Boolean!
+  "Gets or sets a value indicating whether repeat mode should be enabled for the playlist."
+  repeat: Boolean!
+  "Gets or sets an optional originator descriptor."
+  originator: String
+  """
+  Gets or sets an optional JSON payload describing playback context.
+  This property is deprecated; use PlaylistType, OriginatorId, Shuffle, and Repeat instead.
+  """
+  contextJson: String
+  "Gets or sets the capability profile version the client believes is current."
+  capabilityProfileVersion: Int
+  "Gets or sets an optional capability declaration to upsert."
+  capability: PlaybackCapabilityInput
+}
+
+"Input payload used to stop an active playback session."
+input PlaybackStopInput {
+  "Gets or sets the playback session identifier to stop."
+  playbackSessionId: UUID!
+}
+
+"Input payload used to request a chunk of playlist items."
+input PlaylistChunkInput {
+  "Gets or sets the playlist generator identifier."
+  playlistGeneratorId: UUID!
+  "Gets or sets the starting index (0-based)."
+  startIndex: Int!
+  "Gets or sets the maximum number of items to return."
+  limit: Int!
+}
+
+"Input for jumping to a specific index in the playlist."
+input PlaylistJumpInput {
+  "Gets or sets the playlist generator identifier."
+  playlistGeneratorId: UUID!
+  "Gets or sets the 0-based index to jump to."
+  index: Int!
+}
+
+"Input for setting shuffle or repeat mode on a playlist."
+input PlaylistModeInput {
+  "Gets or sets the playlist generator identifier."
+  playlistGeneratorId: UUID!
+  "Gets or sets a value indicating whether the mode should be enabled."
+  enabled: Boolean!
+}
+
+"Input for navigating to next\/previous item in a playlist."
+input PlaylistNavigateInput {
+  "Gets or sets the playlist generator identifier."
+  playlistGeneratorId: UUID!
+}
+
+"GraphQL input describing a condition evaluated against media attributes."
+input ProfileConditionInput {
+  "Gets or sets the comparison operator (e.g., Equals, Contains, IsIn, NotEquals)."
+  condition: String!
+  "Gets or sets the property name to evaluate."
+  property: String!
+  "Gets or sets the value to compare against."
+  value: String
+  "Gets or sets a value indicating whether the condition is mandatory."
+  isRequired: Boolean!
+  "Gets or sets a value indicating whether the condition applies only when transcoding."
+  isRequiredForTranscoding: Boolean!
+}
+
+"Input for promoting a metadata item to the hero carousel."
+input PromoteItemInput {
+  "Gets or sets the metadata item identifier to promote."
+  itemId: ID!
+  """
+  Gets or sets the optional expiration date for the promotion.
+  If set, the item will be automatically unpromoted after this time.
+  """
+  promotedUntil: DateTime
+}
+
+"Input for refreshing metadata for a single item (optionally including descendants)."
+input RefreshItemMetadataInput {
+  "Gets or sets the metadata item identifier."
+  itemId: ID!
+  """
+  Gets or sets a value indicating whether to include all descendants.
+  Defaults to true to refresh entire item trees.
+  """
+  includeChildren: Boolean!
+  """
+  Gets or sets optional field names to force update, bypassing any locks.
+  Use constants from MetadataFieldNames for built-in fields.
+  When not specified or empty, locked fields are respected.
+  """
+  overrideFields: [String!]
+}
+
+"Input for refreshing metadata for an entire library section."
+input RefreshLibraryMetadataInput {
+  "Gets or sets the library section identifier."
+  librarySectionId: ID!
+}
+
+"Input for removing a library section."
+input RemoveLibrarySectionInput {
+  "Gets or sets the library section identifier."
+  librarySectionId: ID!
+}
+
+"GraphQL input mapping response overrides for specific media\/container pairs."
+input ResponseProfileInput {
+  "Gets or sets the media type (Video\/Audio\/Photo)."
+  type: String!
+  "Gets or sets the container restriction."
+  container: String!
+  "Gets or sets the MIME type to advertise."
+  mimeType: String!
+}
+
+"Input for starting a full library scan."
+input StartLibraryScanInput {
+  "Gets or sets the library section identifier."
+  librarySectionId: ID!
+}
+
+input StringOperationFilterInput {
+  and: [StringOperationFilterInput!]
+  or: [StringOperationFilterInput!]
+  eq: String @cost(weight: "10")
+  neq: String @cost(weight: "10")
+  contains: String @cost(weight: "20")
+  ncontains: String @cost(weight: "20")
+  in: [String] @cost(weight: "10")
+  nin: [String] @cost(weight: "10")
+  startsWith: String @cost(weight: "20")
+  nstartsWith: String @cost(weight: "20")
+  endsWith: String @cost(weight: "20")
+  nendsWith: String @cost(weight: "20")
+}
+
+"GraphQL input describing subtitle delivery capabilities."
+input SubtitleProfileInput {
+  "Gets or sets the subtitle format."
+  format: String!
+  "Gets or sets the delivery method (External\/Embed\/Encode)."
+  method: String!
+  "Gets or sets the delivery protocol when applicable (e.g., hls\/dash)."
+  protocol: String
+  "Gets or sets languages this profile covers, if constrained."
+  languages: [String!]!
+}
+
+"GraphQL input describing an allowed transcoding target."
+input TranscodingProfileInput {
+  "Gets or sets the media type (Video\/Audio\/Photo)."
+  type: String!
+  "Gets or sets the container output."
+  container: String!
+  "Gets or sets the playback context (Streaming\/Static)."
+  context: String!
+  "Gets or sets the delivery protocol (e.g., hls)."
+  protocol: String!
+  "Gets or sets the preferred audio codec."
+  audioCodec: String
+  "Gets or sets the preferred video codec."
+  videoCodec: String
+  "Gets or sets the maximum audio channels the client expects."
+  maxAudioChannels: String
+  "Gets or sets a value indicating whether timestamps should be preserved when possible."
+  copyTimestamps: Boolean
+  "Gets or sets the conditions under which this profile applies."
+  applyConditions: [ProfileConditionInput!]!
+}
+
+"Input for unlocking fields on a metadata item."
+input UnlockMetadataFieldsInput {
+  "The UUID of the metadata item to unlock fields on."
+  itemId: ID!
+  "The field names to unlock."
+  fields: [String!]!
+}
+
+"Input for unpromoting a metadata item from the hero carousel."
+input UnpromoteItemInput {
+  "Gets or sets the metadata item identifier to unpromote."
+  itemId: ID!
+}
+
+"Input for updating an admin-defined detail field configuration."
+input UpdateAdminDetailFieldConfigurationInput {
+  "Gets or sets the metadata type this configuration targets."
+  metadataType: MetadataType!
+  "Gets or sets the optional library section identifier when scoping the configuration."
+  librarySectionId: ID
+  "Gets or sets the enabled field types in display order."
+  enabledFieldTypes: [DetailFieldType!]
+  "Gets or sets the disabled field types."
+  disabledFieldTypes: [DetailFieldType!]
+  "Gets or sets the disabled custom field keys."
+  disabledCustomFieldKeys: [String!]
+  "Gets or sets the list of field group definitions."
+  fieldGroups: [DetailFieldGroupInput!]
+  "Gets or sets the field-to-group assignments as key-value pairs."
+  fieldGroupAssignments: [KeyValuePairOfStringAndStringInput!]
+}
+
+"Input type for updating a custom field definition."
+input UpdateCustomFieldDefinitionInput {
+  "Gets or sets the ID of the custom field definition to update."
+  id: ID!
+  "Gets or sets the new display label for this field."
+  label: String
+  "Gets or sets the new widget type for rendering this field."
+  widget: DetailFieldWidgetType
+  """
+  Gets or sets the new metadata types this field applies to.
+  Empty list means the field applies to all metadata types.
+  """
+  applicableMetadataTypes: [MetadataType!]
+  "Gets or sets the new display order of this field."
+  sortOrder: Int
+  "Gets or sets whether the field is enabled."
+  isEnabled: Boolean
+}
+
+"Input type for updating user field configuration."
+input UpdateDetailFieldConfigurationInput {
+  "Gets or sets the metadata type this configuration applies to."
+  metadataType: MetadataType!
+  "Gets or sets the list of enabled field types in display order."
+  enabledFieldTypes: [DetailFieldType!]
+  "Gets or sets the list of explicitly disabled field types."
+  disabledFieldTypes: [DetailFieldType!]
+}
+
+"Input for updating a hub configuration for a given scope."
+input UpdateHubConfigurationInput {
+  "Gets or sets the hub context to update."
+  context: HubContext!
+  "Gets or sets the optional library section identifier for discover\/detail scopes."
+  librarySectionId: ID
+  "Gets or sets the optional metadata type for item detail scopes."
+  metadataType: MetadataType
+  "Gets or sets the enabled hub types in display order."
+  enabledHubTypes: [HubType!]
+  "Gets or sets the disabled hub types."
+  disabledHubTypes: [HubType!]
+}
+
+"Input for updating a metadata item."
+input UpdateMetadataItemInput {
+  "The UUID of the metadata item to update."
+  itemId: ID!
+  "The new title for the item."
+  title: String
+  "The new sort title for the item."
+  sortTitle: String
+  "The new original title for the item."
+  originalTitle: String
+  "The new summary\/description for the item."
+  summary: String
+  "The new tagline for the item."
+  tagline: String
+  "The new content rating for the item."
+  contentRating: String
+  "The new release date for the item."
+  releaseDate: LocalDate
+  "The new genres for the item."
+  genres: [String!]
+  "The new tags for the item."
+  tags: [String!]
+  "The external identifiers for the item."
+  externalIds: [ExternalIdInput!]
+  "The field names that should be locked from automatic updates."
+  lockedFields: [String!]
+  "The custom extra fields for the item."
+  extraFields: [ExtraFieldInput!]
+}
+
+"""
+Input for updating server-wide configuration settings.
+All fields are optional; only specified fields will be updated.
+"""
+input UpdateServerSettingsInput {
+  "Gets the friendly display name of the server."
+  serverName: String
+  "Gets the maximum streaming bitrate in bits per second."
+  maxStreamingBitrate: Int
+  "Gets a value indicating whether to prefer H.265 (HEVC) codec for video transcoding."
+  preferH265: Boolean
+  "Gets a value indicating whether to allow remuxing (container change without re-encoding)."
+  allowRemuxing: Boolean
+  "Gets a value indicating whether to allow HEVC encoding when transcoding video."
+  allowHEVCEncoding: Boolean
+  "Gets the default video codec for DASH transcoding."
+  dashVideoCodec: String
+  "Gets the default audio codec for DASH transcoding."
+  dashAudioCodec: String
+  "Gets the DASH segment duration in seconds."
+  dashSegmentDurationSeconds: Int
+  "Gets a value indicating whether tone mapping is enabled for HDR content."
+  enableToneMapping: Boolean
+  "Gets the user's preferred hardware acceleration (null = auto-detect)."
+  userPreferredAcceleration: HardwareAccelerationKind
+  "Gets the list of allowed tags (empty = no allowlist)."
+  allowedTags: [String!]
+  "Gets the list of blocked tags (empty = no blocklist)."
+  blockedTags: [String!]
+  "Gets the genre normalization mappings (input → canonical)."
+  genreMappings: [KeyValuePairOfStringAndStringInput!]
+  "Gets the minimum log level (Debug, Information, Warning, Error, Fatal)."
+  logLevel: String
+}
+
+"Input for updating transcode settings."
+input UpdateTranscodeSettingsInput {
+  "Gets the user's preferred hardware acceleration (null = use auto-detected)."
+  userPreferredAcceleration: HardwareAccelerationKind
+  "Gets a value indicating whether tone mapping is enabled."
+  enableToneMapping: Boolean
+  "Gets the default video codec for DASH transcoding."
+  dashVideoCodec: String
+  "Gets the default audio codec for DASH transcoding."
+  dashAudioCodec: String
+  "Gets the DASH segment duration in seconds."
+  dashSegmentDurationSeconds: Int
+}
+
+"Defines when a policy shall be executed."
+enum ApplyPolicy {
+  "Before the resolver was executed."
+  BEFORE_RESOLVER
+  "After the resolver was executed."
+  AFTER_RESOLVER
+  "The policy is applied in the validation step before the execution."
+  VALIDATION
+}
+
+"Defines the layout type for field groups on item detail pages."
+enum DetailFieldGroupLayoutType {
+  "Fields are arranged vertically in a single column."
+  VERTICAL
+  "Fields are arranged horizontally in a single row."
+  HORIZONTAL
+  "Fields are arranged in a responsive grid layout."
+  GRID
+}
+
+"Represents the type of field displayed on item detail pages."
+enum DetailFieldType {
+  """
+  The actions button block (Play, Edit, Menu, etc.).
+  This is a non-configurable placeholder; the client determines which buttons to show.
+  """
+  ACTIONS
+  "The display title of the item."
+  TITLE
+  "The original title in the original language."
+  ORIGINAL_TITLE
+  "The tagline or slogan."
+  TAGLINE
+  "The summary or description text."
+  SUMMARY
+  "The release date of the item."
+  RELEASE_DATE
+  "The release year of the item."
+  YEAR
+  "The runtime\/duration of the item."
+  RUNTIME
+  "The content rating (e.g., \"PG-13\", \"TV-MA\")."
+  CONTENT_RATING
+  "The genres associated with the item."
+  GENRES
+  "The tags associated with the item."
+  TAGS
+  "External identifiers (TMDB, TVDB, IMDb, etc.)."
+  EXTERNAL_IDS
+  "A custom field defined by an administrator, stored in ExtraFields."
+  CUSTOM
+}
+
+"Represents the widget type for rendering a field on the client."
+enum DetailFieldWidgetType {
+  "Plain text display."
+  TEXT
+  "A heading\/title display (typically larger, bold text)."
+  HEADING
+  "A list of items (e.g., genres, tags)."
+  LIST
+  "A badge\/pill display (e.g., content rating)."
+  BADGE
+  "A clickable link."
+  LINK
+  "A formatted date display."
+  DATE
+  "A formatted duration display (e.g., \"2h 15m\")."
+  DURATION
+  "A numeric value display."
+  NUMBER
+  "A boolean\/toggle display."
+  BOOLEAN
+  """
+  The actions button block (Play, Edit, Menu, etc.).
+  The client determines which buttons to render based on user role and item capabilities.
+  """
+  ACTIONS
+}
+
+"Defines how episodes should be sorted within a season\/series for display and selection."
+enum EpisodeSortOrder {
+  "Sort by original air date ascending."
+  AIR_DATE
+  "Sort by season and episode number (SxxExx), ascending."
+  SEASON_EPISODE
+  "Sort by production order when available; falls back to air date."
+  PRODUCTION
+}
+
+"Categorizes filesystem root types."
+enum FileSystemRootKind {
+  "The primary OS root (e.g., \/ or C:\\)."
+  ROOT
+  "A logical drive (Windows) or volume."
+  DRIVE
+  "A mounted filesystem."
+  MOUNT
+}
+
+"Hardware acceleration modes supported by the server configuration."
+enum HardwareAccelerationKind {
+  "No hardware acceleration is used."
+  NONE
+  "VAAPI acceleration (Linux GPUs supporting VA-API)."
+  VAAPI
+  "Intel Quick Sync Video."
+  QSV
+  "NVIDIA NVENC\/NVDEC."
+  NVENC
+  "AMD Advanced Media Framework (Windows)."
+  AMF
+  "Apple VideoToolbox (macOS\/iOS)."
+  VIDEO_TOOLBOX
+  "Rockchip Media Process Platform (Rockchip SoCs)."
+  RKMPP
+  "Video4Linux2 Memory-to-Memory (Raspberry Pi\/ARM)."
+  V4L2M2M
+}
+
+"Represents the context in which a hub is displayed."
+enum HubContext {
+  "Hub is displayed on the global home page, aggregating content from all user-accessible libraries."
+  HOME
+  "Hub is displayed on the library-specific discover page."
+  LIBRARY_DISCOVER
+  "Hub is displayed on a metadata item's detail page, showing related content."
+  ITEM_DETAIL
+}
+
+"Represents the type of hub, defining the content and logic for populating it."
+enum HubType {
+  "Items currently being watched (has view offset but not completed)."
+  CONTINUE_WATCHING
+  "The next episode to watch in a series (On Deck)."
+  ON_DECK
+  "Items recently played\/listened to."
+  RECENTLY_PLAYED
+  "Items recently added to the library."
+  RECENTLY_ADDED
+  "Items recently released (by release date)."
+  RECENTLY_RELEASED
+  "Recently aired episodes."
+  RECENTLY_AIRED
+  "Admin-promoted items for the hero carousel, backfilled with recently added items."
+  PROMOTED
+  "Top items filtered by a specific genre."
+  TOP_BY_GENRE
+  "Top items by a specific director."
+  TOP_BY_DIRECTOR
+  "Top items by a specific artist."
+  TOP_BY_ARTIST
+  "Cast members for an item."
+  CAST
+  "Crew members for an item."
+  CREW
+  "More items from the same director."
+  MORE_FROM_DIRECTOR
+  "More items from the same artist."
+  MORE_FROM_ARTIST
+  "Items from the same collection."
+  RELATED_COLLECTION
+  "Similar items based on genre\/tags."
+  SIMILAR_ITEMS
+  "Extras associated with an item (trailers, behind-the-scenes, etc.)."
+  EXTRAS
+  "Tracks from an album release, grouped by medium\/disc."
+  TRACKS
+  "Album releases within an album release group."
+  ALBUM_RELEASES
+  "Photos or pictures within a PhotoAlbum or PictureSet."
+  PHOTOS
+}
+
+"Represents the recommended widget type for rendering a hub on the client."
+enum HubWidgetType {
+  "A horizontal slider of items or people cards."
+  SLIDER
+  "A timeline list of items ordered from most recent to least recent."
+  TIMELINE
+  "A large hero carousel with backdrop images, logos, and rich metadata."
+  HERO
+  "A vertical tracklist of audio tracks grouped by medium\/disc."
+  TRACKLIST
+  "A grid layout for displaying photos or pictures."
+  GRID
+}
+
+"Represents the type of background job being executed."
+enum JobType {
+  "Library scanning job."
+  LIBRARY_SCAN
+  "Metadata refresh job for one or more items."
+  METADATA_REFRESH
+  "File analysis job."
+  FILE_ANALYSIS
+  "Image generation job."
+  IMAGE_GENERATION
+  "Trickplay (BIF) generation job."
+  TRICKPLAY_GENERATION
+  "Search index rebuild job."
+  SEARCH_INDEX_REBUILD
+}
+
+"Represents the type of media library."
+enum LibraryType {
+  "Movies library containing feature films, short films, and documentaries."
+  MOVIES
+  "TV Shows library containing series, seasons, and episodes."
+  TV_SHOWS
+  "Music Videos library containing standalone music video content."
+  MUSIC_VIDEOS
+  "Home Videos library for personal video recordings."
+  HOME_VIDEOS
+  "Music library containing albums, tracks, and recordings."
+  MUSIC
+  "Audiobooks library containing narrated book content."
+  AUDIOBOOKS
+  "Podcasts library containing podcast series and episodes."
+  PODCASTS
+  "Photos library containing personal photographs and albums."
+  PHOTOS
+  "Pictures library containing digital art, wallpapers, and images."
+  PICTURES
+  "Books library containing novels, non-fiction, and written literature."
+  BOOKS
+  "Comics library containing comic books and graphic novels."
+  COMICS
+  "Manga library containing Japanese manga series."
+  MANGA
+  "Magazines library containing periodical publications."
+  MAGAZINES
+  "Games library containing video games across all platforms."
+  GAMES
+}
+
+"""
+Categorizes metadata agents by their data source type.
+Used in the UI to display appropriate icons and group agents.
+"""
+enum MetadataAgentCategory {
+  "Sidecar file parsers that read metadata from adjacent files (.nfo, metadata.json)."
+  SIDECAR
+  "Embedded metadata extractors that read tags from media containers (ID3, Matroska, MP4)."
+  EMBEDDED
+  "Local metadata agents that derive information without network access."
+  LOCAL
+  "Remote metadata agents that fetch from external APIs."
+  REMOTE
+}
+
+"Enumeration of supported metadata types."
+enum MetadataType {
+  "Unknown or unspecified metadata type."
+  UNKNOWN
+  "The metadata represents a movie, either feature-length or short film."
+  MOVIE
+  "The metadata represents a TV show."
+  SHOW
+  "The metadata represents a single season of a TV show."
+  SEASON
+  "The metadata represents an episode of a TV show."
+  EPISODE
+  "The metadata represents a grouping of album releases, such as a studio album or compilation."
+  ALBUM_RELEASE_GROUP
+  "The metadata represents a audio album release."
+  ALBUM_RELEASE
+  "The metadata represents a medium within an audio album release, such as a disc in a multi-disc set."
+  ALBUM_MEDIUM
+  "The metadata represents a audio track."
+  TRACK
+  "The metadata represents a audio recording."
+  RECORDING
+  "The metadata represents a audio work."
+  AUDIO_WORK
+  "The metadata represents a photo album."
+  PHOTO_ALBUM
+  "The metadata represents a photo."
+  PHOTO
+  "The metadata represents a picture set."
+  PICTURE_SET
+  "The metadata represents a picture."
+  PICTURE
+  """
+  The metadata represents an ordered set of books, such as a manga series, a periodical,
+  or a comic book series.
+  """
+  BOOK_SERIES
+  """
+  The metadata represents a grouping of book editions, such as a single book released
+  in multiple formats (hardcover, paperback, eBook, audiobook).
+  """
+  EDITION_GROUP
+  """
+  The metadata represents a concrete publication of a book, such as a specific edition
+  or format.
+  """
+  EDITION
+  "The metadata represents an item within a book edition, such as a chapter or volume."
+  EDITION_ITEM
+  "The metadata represents a literary work as a whole."
+  LITERARY_WORK
+  "The metadata represents a part of a literary work, such as a chapter or section."
+  LITERARY_WORK_PART
+  "The metadata represents a video game franchise."
+  GAME_FRANCHISE
+  "The metadata represents a video game series."
+  GAME_SERIES
+  "The metadata represents a single video game."
+  GAME
+  "The metadata represents a game release."
+  GAME_RELEASE
+  "The metadata represents an individual person."
+  PERSON
+  "The metadata represents a group of people, such as a band, a troupe, or a cast."
+  GROUP
+  "The metadata represents a company or organization (e.g., production company, publisher, distributor)."
+  COMPANY
+  "The metadata represents a label (e.g., record label, movie studio label, book imprint)."
+  LABEL
+  "Collection metadata type."
+  COLLECTION
+  "Playlist metadata type."
+  PLAYLIST
+  "Playlists folder metadata type."
+  PLAYLISTS_FOLDER
+  "Trailer metadata type."
+  TRAILER
+  "Clip metadata type."
+  CLIP
+  "Behind-the-scenes extra metadata type."
+  BEHIND_THE_SCENES
+  "Deleted scene extra metadata type."
+  DELETED_SCENE
+  "Featurette extra metadata type."
+  FEATURETTE
+  "Interview extra metadata type."
+  INTERVIEW
+  "Scene extra metadata type."
+  SCENE
+  "Short-form extra metadata type."
+  SHORT_FORM
+  "Other\/uncategorized extra metadata type."
+  EXTRA_OTHER
+  "Optimized version metadata type."
+  OPTIMIZED_VERSION
+  "User playlist item metadata type."
+  USER_PLAYLIST_ITEM
+}
+
+"Specifies the type of content to search for in the search index."
+enum SearchPivot {
+  "Returns top results across all metadata item types."
+  TOP
+  "Returns only movie results."
+  MOVIE
+  "Returns only TV show results."
+  SHOW
+  "Returns only episode results."
+  EPISODE
+  "Returns only person and group results."
+  PEOPLE
+  "Returns only music album results."
+  ALBUM
+  "Returns only music track results."
+  TRACK
+}
+
+enum SortEnumType {
+  ASC
+  DESC
+}
+
+"The authorize directive."
+directive @authorize("The name of the authorization policy that determines access to the annotated resource." policy: String "Roles that are allowed to access the annotated resource." roles: [String!] "Defines when when the authorize directive shall be applied.By default the authorize directives are applied during the validation phase." apply: ApplyPolicy! = BEFORE_RESOLVER) repeatable on OBJECT | FIELD_DEFINITION
+
+"The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
+directive @cost("The `weight` argument defines what value to add to the overall cost for every appearance, or possible appearance, of a type, field, argument, etc." weight: String!) on SCALAR | OBJECT | FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM | INPUT_FIELD_DEFINITION
+
+"The purpose of the `@listSize` directive is to either inform the static analysis about the size of returned lists (if that information is statically available), or to point the analysis to where to find that information."
+directive @listSize("The `assumedSize` argument can be used to statically define the maximum length of a list returned by a field." assumedSize: Int "The `slicingArguments` argument can be used to define which of the field's arguments with numeric type are slicing arguments, so that their value determines the size of the list returned by that field. It may specify a list of multiple slicing arguments." slicingArguments: [String!] "The `slicingArgumentDefaultValue` argument can be used to define a default value for a slicing argument, which is used if the argument is not present in a query." slicingArgumentDefaultValue: Int "The `sizedFields` argument can be used to define that the value of the `assumedSize` argument or of a slicing argument does not affect the size of a list returned by a field itself, but that of a list returned by one of its sub-fields." sizedFields: [String!] "The `requireOneSlicingArgument` argument can be used to inform the static analysis that it should expect that exactly one of the defined slicing arguments is present in a query. If that is not the case (i.e., if none or multiple slicing arguments are present), the static analysis may throw an error." requireOneSlicingArgument: Boolean = true) on FIELD_DEFINITION
+
+"""
+The @lookup directive is used within a source schema to specify output fields
+that can be used by the distributed GraphQL executor to resolve an entity by
+a stable key.
+"""
+directive @lookup on FIELD_DEFINITION
+
+directive @shareable repeatable on OBJECT | FIELD_DEFINITION
+
+"The `@specifiedBy` directive is used within the type system definition language to provide a URL for specifying the behavior of custom scalar definitions."
+directive @specifiedBy("The specifiedBy URL points to a human-readable specification. This field will only read a result for scalar types." url: String!) on SCALAR
+
+scalar Any
+
+"The `DateTime` scalar represents an exact point in time. This point in time is specified by having an offset to UTC and does not use a time zone."
+scalar DateTime @specifiedBy(url: "https:\/\/scalars.graphql.org\/andimarek\/date-time.html")
+
+"The `LocalDate` scalar represents a date without a time-zone in the ISO-8601 calendar system."
+scalar LocalDate @specifiedBy(url: "https:\/\/scalars.graphql.org\/andimarek\/local-date.html")
+
+"The `Long` scalar type represents non-fractional signed whole 64-bit numeric values. Long can represent values between -(2^63) and 2^63 - 1."
+scalar Long
+
+scalar UUID @specifiedBy(url: "https:\/\/tools.ietf.org\/html\/rfc4122")

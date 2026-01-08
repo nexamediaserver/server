@@ -4,10 +4,12 @@ import {
   type MetadataType,
 } from '@/shared/api/graphql/graphql'
 
+import { HubGridRow } from './HubGridRow'
 import { HubHeroCarousel } from './HubHeroCarousel'
 import { HubItemRow } from './HubItemRow'
 import { HubPeopleRow } from './HubPeopleRow'
 import { HubTimelineRow } from './HubTimelineRow'
+import { HubTracklistRow } from './HubTracklistRow'
 
 type HubRowProps = Readonly<{
   definition: HubDefinition
@@ -41,6 +43,14 @@ export function HubRow({
 
   // Route to appropriate widget based on widget type
   switch (definition.widget) {
+    case HubWidgetType.Grid:
+      return (
+        <HubGridRow
+          definition={definition}
+          librarySectionId={librarySectionId}
+          metadataItemId={metadataItemId}
+        />
+      )
     case HubWidgetType.Hero:
       return (
         <HubHeroCarousel
@@ -52,6 +62,14 @@ export function HubRow({
     case HubWidgetType.Timeline:
       return (
         <HubTimelineRow
+          definition={definition}
+          librarySectionId={librarySectionId}
+          metadataItemId={metadataItemId}
+        />
+      )
+    case HubWidgetType.Tracklist:
+      return (
+        <HubTracklistRow
           definition={definition}
           librarySectionId={librarySectionId}
           metadataItemId={metadataItemId}

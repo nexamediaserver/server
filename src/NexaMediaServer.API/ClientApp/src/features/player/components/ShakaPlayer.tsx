@@ -10,12 +10,13 @@ import {
 import shaka from 'shaka-player'
 
 import { graphql } from '@/shared/api/graphql'
+import { MetadataType } from '@/shared/api/graphql/graphql'
 import { handleErrorStandalone } from '@/shared/hooks/useErrorHandler'
 import { createPlaybackError } from '@/shared/lib/errors'
 import { buildPlaybackCapabilityInput } from '@/shared/lib/playbackCapabilities'
 
-import { useGopSeek } from '../hooks/useGopSeek'
 import { usePlayback } from '../hooks/usePlayback'
+import { useStopPlayback } from '../hooks/useStopPlayback'
 import { type PlaybackState, playbackStateAtom } from '../store'
 
 const decidePlaybackMutation = graphql(`
@@ -24,6 +25,10 @@ const decidePlaybackMutation = graphql(`
       action
       streamPlanJson
       nextItemId
+      nextItemTitle
+      nextItemOriginalTitle
+      nextItemParentTitle
+      nextItemThumbUrl
       playbackUrl
       trickplayUrl
       capabilityProfileVersion
@@ -33,11 +38,11 @@ const decidePlaybackMutation = graphql(`
 `)
 
 export interface ShakaPlayerHandle {
+  getMediaElement: () => HTMLAudioElement | HTMLVideoElement | null
   getPlayer: () => null | shaka.Player
+  /** @deprecated Use getMediaElement instead */
   getVideoElement: () => HTMLVideoElement | null
   seek: (time: number) => void
-  /** Performs a GoP-aware seek for remux/transcode modes. Returns the actual seek position. */
-  seekWithGop: (time: number) => Promise<number>
 }
 
 interface ShakaPlayerProps {
@@ -45,6 +50,12 @@ interface ShakaPlayerProps {
    * CSS class name for the container
    */
   className?: string
+
+  /**
+   * Media type: 'video' or 'audio'. Determines which element to render.
+   * Defaults to 'video'.
+   */
+  mediaType?: 'audio' | 'video'
 
   /**
    * Callback when an error occurs
@@ -60,249 +71,56 @@ interface ShakaPlayerProps {
 /**
  * ShakaPlayer component that integrates with the Jotai playback store
  * No built-in UI - controls are external
+ * Supports both audio and video playback
+ *
+ * Follows Jellyfin's approach: simple client-side seeking, server handles
+ * transcoding offsets and segment generation.
  */
 export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
-  ({ className, onError, onPlayerReady }, ref) => {
+  ({ className, mediaType = 'video', onError, onPlayerReady }, ref) => {
     const apolloClient = useApolloClient()
-    const videoRef = useRef<HTMLVideoElement>(null)
+    const mediaRef = useRef<HTMLAudioElement | HTMLVideoElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const playerRef = useRef<null | shaka.Player>(null)
 
     const [playbackState] = useAtom(playbackStateAtom)
     const playbackStateRef = useRef<PlaybackState>(playbackState)
-    const { stopPlayback, updatePlaybackState, updateProgress } = usePlayback()
-    const { needsGopSeek, seekToKeyframe } = useGopSeek()
+    const { updatePlaybackState, updateProgress } = usePlayback()
+    const { stopPlayback } = useStopPlayback()
 
     useEffect(() => {
       playbackStateRef.current = playbackState
     }, [playbackState])
 
-    // Perform a direct seek to the video element
+    // Perform a direct seek to the media element
+    // Jellyfin approach: simple seeking, server handles transcode offsets
     const performSeek = useCallback((timeInSeconds: number) => {
-      if (videoRef.current) {
-        videoRef.current.currentTime = timeInSeconds
+      if (mediaRef.current) {
+        mediaRef.current.currentTime = timeInSeconds
       }
     }, [])
 
-    // Build a remux-seek URL for reloading the stream from a specific position
-    const buildRemuxSeekUrl = useCallback(
-      (keyframeMs: number): null | string => {
-        const state = playbackStateRef.current
-        if (!state.streamPlanJson) return null
-
-        try {
-          const plan = JSON.parse(state.streamPlanJson) as {
-            Container?: string
-            MediaPartId?: number
-            Mode?: number | string
-            RemuxUrl?: string
-          }
-
-          // Only applicable for DirectStream (remux) mode
-          // Mode can be numeric (1) or string ('DirectStream')
-          const isDirectStream = plan.Mode === 1 || plan.Mode === 'DirectStream'
-          if (!isDirectStream || !plan.MediaPartId) {
-            return null
-          }
-
-          const container = plan.Container ?? 'mp4'
-          return `/api/v1/playback/part/${String(plan.MediaPartId)}/remux-seek.${container}?seekMs=${String(Math.round(keyframeMs))}`
-        } catch {
-          return null
-        }
-      },
-      [],
-    )
-
-    // Build a DASH seek URL for reloading the stream from a specific position
-    const buildDashSeekUrl = useCallback(
-      (keyframeMs: number): null | string => {
-        const state = playbackStateRef.current
-        if (!state.streamPlanJson) return null
-
-        try {
-          const plan = JSON.parse(state.streamPlanJson) as {
-            MediaPartId?: number
-            Mode?: number | string
-          }
-
-          // Only applicable for Transcode (DASH) mode
-          // Mode can be numeric (2) or string ('Transcode')
-          const isTranscode = plan.Mode === 2 || plan.Mode === 'Transcode'
-          if (!isTranscode || !plan.MediaPartId) {
-            return null
-          }
-
-          return `/api/v1/playback/part/${String(plan.MediaPartId)}/dash-seek/manifest.mpd?seekMs=${String(Math.round(keyframeMs))}`
-        } catch {
-          return null
-        }
-      },
-      [],
-    )
-
-    // Perform a GoP-aware seek for remux/transcode modes
-    const performGopSeek = useCallback(
-      async (timeInSeconds: number): Promise<number> => {
-        const player = playerRef.current
-        const video = videoRef.current
-        const state = playbackStateRef.current
-        const targetMs = timeInSeconds * 1000
-
-        // Query server for optimal keyframe position
-        const result = await seekToKeyframe(targetMs)
-        const seekTimeSeconds = result.seekTimeMs / 1000
-
-        // Get the actual seekable range from Shaka (more reliable than video.duration for DASH)
-        const seekRange = player?.seekRange()
-        const seekableEnd = seekRange?.end ?? video?.duration ?? 0
-
-        // Use finite duration for comparison (Infinity means live/progressive stream)
-        const browserDuration = Number.isFinite(seekableEnd) ? seekableEnd : 0
-
-        // serverDuration is the actual media duration from the backend (in ms)
-        const serverDurationSeconds = (state.serverDuration ?? 0) / 1000
-
-        // Debug: log seek attempt details
-        console.log('[ShakaPlayer] Seeking:', {
-          browserDuration,
-          mode: state.streamPlanJson
-            ? (
-                JSON.parse(state.streamPlanJson) as {
-                  Mode?: number | string
-                }
-              ).Mode
-            : 'unknown',
-          seekRange,
-          seekTimeSeconds,
-          serverDurationSeconds,
-          targetMs,
-        })
-
-        // Check if we're seeking past the currently available content
-        // This can happen with:
-        // 1. Remux streams where browser doesn't know full duration
-        // 2. DASH streams that are still being transcoded
-        // If browser knows less than server, and we're seeking past browser's knowledge, reload
-        const isPastBrowserKnowledge =
-          browserDuration > 0 &&
-          seekTimeSeconds > browserDuration - 1 &&
-          serverDurationSeconds > browserDuration + 1
-
-        if (isPastBrowserKnowledge && player && video && needsGopSeek()) {
-          // For DirectStream (remux), we can reload the stream from a new position
-          const remuxSeekUrl = buildRemuxSeekUrl(result.seekTimeMs)
-          if (remuxSeekUrl) {
-            // Reload the stream from the seek position
-            const wasPlaying = !video.paused
-
-            await player.load(remuxSeekUrl)
-
-            // Set the stream offset so time calculations account for the seek position
-            updatePlaybackState({
-              currentTime: result.seekTimeMs,
-              streamOffset: result.seekTimeMs,
-            })
-
-            if (wasPlaying) {
-              video.play().catch(() => {
-                // Ignore play errors during seek reload
-              })
-            }
-
-            return seekTimeSeconds
-          }
-
-          // For Transcode (DASH) mode, request a new transcode starting from seek position
-          const dashSeekUrl = buildDashSeekUrl(result.seekTimeMs)
-          if (dashSeekUrl) {
-            console.log('[ShakaPlayer] Loading DASH seek URL:', dashSeekUrl)
-            const wasPlaying = !video.paused
-
-            // Fetch manifest to get the actual start time from header
-            const manifestResponse = await fetch(dashSeekUrl)
-            const actualStartTimeMs = Number(
-              manifestResponse.headers.get('X-Dash-Start-Time-Ms') ??
-                result.seekTimeMs,
-            )
-
-            await player.load(dashSeekUrl)
-
-            // Set the stream offset so time calculations account for the seek position
-            updatePlaybackState({
-              currentTime: actualStartTimeMs,
-              streamOffset: actualStartTimeMs,
-            })
-
-            if (wasPlaying) {
-              video.play().catch(() => {
-                // Ignore play errors during seek reload
-              })
-            }
-
-            return actualStartTimeMs / 1000
-          }
-
-          // Fallback: clamp to available range
-          console.warn(
-            '[ShakaPlayer] Seeking past available content. No seek URL available.',
-            { available: browserDuration, requested: seekTimeSeconds },
-          )
-          const clampedSeek = Math.max(0, browserDuration - 1)
-          performSeek(clampedSeek)
-          return clampedSeek
-        }
-
-        // Within seekable range - just seek directly
-        updatePlaybackState({ streamOffset: 0 })
-        performSeek(seekTimeSeconds)
-
-        return seekTimeSeconds
-      },
-      [
-        buildDashSeekUrl,
-        buildRemuxSeekUrl,
-        needsGopSeek,
-        performSeek,
-        seekToKeyframe,
-        updatePlaybackState,
-      ],
-    )
-
     // Expose methods to parent via ref
+    // Jellyfin approach: simple seeking without client-side GoP logic
     useImperativeHandle(
       ref,
       () => ({
+        getMediaElement: () => mediaRef.current,
         getPlayer: () => playerRef.current,
-        getVideoElement: () => videoRef.current,
+        getVideoElement: () =>
+          mediaRef.current instanceof HTMLVideoElement
+            ? mediaRef.current
+            : null,
         seek: (time: number) => {
-          // Debug: track seek entry
-          const gopNeeded = needsGopSeek()
-          const streamPlan = playbackStateRef.current.streamPlanJson
-          console.log('[ShakaPlayer] seek() called:', {
-            gopNeeded,
-            parsedPlan: streamPlan ? JSON.parse(streamPlan) : null,
-            streamPlanJson: streamPlan,
-            time,
-          })
-
-          // For simple seek calls, use GoP-aware seeking if beneficial
-          if (gopNeeded) {
-            void performGopSeek(time)
-          } else {
-            performSeek(time)
-          }
-        },
-        seekWithGop: async (time: number): Promise<number> => {
-          return performGopSeek(time)
+          performSeek(time)
         },
       }),
-      [needsGopSeek, performGopSeek, performSeek],
+      [performSeek],
     )
 
     // Initialize Shaka Player
     useEffect(() => {
-      if (!videoRef.current || !containerRef.current) return
+      if (!mediaRef.current || !containerRef.current) return
 
       // Install polyfills
       shaka.polyfill.installAll()
@@ -320,8 +138,8 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
       const player = new shaka.Player()
       playerRef.current = player
 
-      // Attach player to video element
-      void player.attach(videoRef.current).then(() => {
+      // Attach player to media element
+      void player.attach(mediaRef.current).then(() => {
         // Notify parent component
         onPlayerReady?.(player)
       })
@@ -343,14 +161,14 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
         void player.destroy()
         playerRef.current = null
       }
-    }, [onError, onPlayerReady])
+    }, [onError, onPlayerReady, mediaType])
 
     // Load media when playbackUrl changes
     useEffect(() => {
       const player = playerRef.current
-      const video = videoRef.current
+      const media = mediaRef.current
 
-      if (!player || !video || !playbackState.playbackUrl) {
+      if (!player || !media || !playbackState.playbackUrl) {
         return
       }
 
@@ -359,13 +177,13 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
         .load(playbackState.playbackUrl)
         .then(() => {
           // Update duration when available
-          if (video.duration && !Number.isNaN(video.duration)) {
-            updateProgress(0, video.duration * 1000) // Convert to milliseconds
+          if (media.duration && !Number.isNaN(media.duration)) {
+            updateProgress(0, media.duration * 1000) // Convert to milliseconds
           }
 
-          // Add trickplay thumbnails if available
+          // Add trickplay thumbnails if available (video only)
           const trickplayUrl = playbackState.trickplayUrl
-          if (trickplayUrl) {
+          if (trickplayUrl && mediaType === 'video') {
             player.addThumbnailsTrack(trickplayUrl).catch((error: unknown) => {
               handleErrorStandalone(error, {
                 context: 'ShakaPlayer.trickplay',
@@ -394,19 +212,25 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
             onError?.(error as shaka.util.Error)
           }
         })
-    }, [playbackState.playbackUrl, updateProgress, onError])
+    }, [
+      playbackState.playbackUrl,
+      updateProgress,
+      onError,
+      mediaType,
+      playbackState.trickplayUrl,
+    ])
 
     // Sync play/pause state
     useEffect(() => {
-      const video = videoRef.current
+      const media = mediaRef.current
       const player = playerRef.current
-      if (!video) return
+      if (!media) return
 
       if (playbackState.isPlaying) {
         // Only attempt to play if the player has loaded content
         // This prevents AbortError when play() is called before/during load
-        if (player && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-          video.play().catch((error: unknown) => {
+        if (player && media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          media.play().catch((error: unknown) => {
             // Ignore AbortError - this happens when play() is interrupted by a new load
             // or user navigation, which is expected behavior
             if (error instanceof DOMException && error.name === 'AbortError') {
@@ -419,57 +243,83 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
           })
         }
       } else {
-        video.pause()
+        media.pause()
+      }
+    }, [playbackState.isPlaying])
+
+    // Ensure autoplay triggers once the media element can play (covers direct play and transcode)
+    useEffect(() => {
+      const media = mediaRef.current
+      if (!media) return
+
+      const handleCanPlay = () => {
+        if (!playbackState.isPlaying) return
+
+        media.play().catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            return
+          }
+          handleErrorStandalone(error, {
+            context: 'ShakaPlayer.autoplay',
+            notify: false,
+          })
+        })
+      }
+
+      media.addEventListener('canplay', handleCanPlay)
+
+      return () => {
+        media.removeEventListener('canplay', handleCanPlay)
       }
     }, [playbackState.isPlaying])
 
     // Sync volume
     useEffect(() => {
-      const video = videoRef.current
-      if (!video) return
+      const media = mediaRef.current
+      if (!media) return
 
-      video.volume = playbackState.volume
+      media.volume = playbackState.volume
     }, [playbackState.volume])
 
     // Sync mute state
     useEffect(() => {
-      const video = videoRef.current
-      if (!video) return
+      const media = mediaRef.current
+      if (!media) return
 
-      video.muted = playbackState.isMuted
+      media.muted = playbackState.isMuted
     }, [playbackState.isMuted])
 
-    // Listen to video events and update playback state
+    // Listen to media events and update playback state
     useEffect(() => {
-      const video = videoRef.current
-      if (!video) return
+      const media = mediaRef.current
+      if (!media) return
 
       const handleTimeUpdate = () => {
         // Update current time and buffered time
         let bufferedEnd = 0
-        if (video.buffered.length > 0) {
+        if (media.buffered.length > 0) {
           // Get the end of the buffered range that contains current time
-          for (let i = 0; i < video.buffered.length; i++) {
+          for (let i = 0; i < media.buffered.length; i++) {
             if (
-              video.buffered.start(i) <= video.currentTime &&
-              video.buffered.end(i) >= video.currentTime
+              media.buffered.start(i) <= media.currentTime &&
+              media.buffered.end(i) >= media.currentTime
             ) {
-              bufferedEnd = video.buffered.end(i)
+              bufferedEnd = media.buffered.end(i)
               break
             }
           }
           // If no range contains current time, use the last buffered range
-          if (bufferedEnd === 0 && video.buffered.length > 0) {
-            bufferedEnd = video.buffered.end(video.buffered.length - 1)
+          if (bufferedEnd === 0 && media.buffered.length > 0) {
+            bufferedEnd = media.buffered.end(media.buffered.length - 1)
           }
         }
-        const durationMs = Number.isFinite(video.duration)
-          ? video.duration * 1000
+        const durationMs = Number.isFinite(media.duration)
+          ? media.duration * 1000
           : 0
 
         // Account for stream offset when we've reloaded the stream from a seek position
         const streamOffset = playbackStateRef.current.streamOffset ?? 0
-        const actualCurrentTime = video.currentTime * 1000 + streamOffset
+        const actualCurrentTime = media.currentTime * 1000 + streamOffset
 
         updatePlaybackState({
           bufferedTime: bufferedEnd * 1000 + streamOffset,
@@ -479,8 +329,8 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
       }
 
       const handleDurationChange = () => {
-        if (!Number.isNaN(video.duration) && Number.isFinite(video.duration)) {
-          updatePlaybackState({ duration: video.duration * 1000 })
+        if (!Number.isNaN(media.duration) && Number.isFinite(media.duration)) {
+          updatePlaybackState({ duration: media.duration * 1000 })
         }
       }
 
@@ -518,7 +368,8 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
                   ),
                   capabilityProfileVersion:
                     latestPlayback.capabilityProfileVersion,
-                  currentItemId: latestPlayback.originator.id,
+                  currentItemId:
+                    latestPlayback.mediaId ?? latestPlayback.originator.id,
                   playbackSessionId: latestPlayback.playbackSessionId,
                   progressMs: Math.round(latestPlayback.currentTime),
                   status: 'ended',
@@ -528,10 +379,55 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
             .then((response) => {
               const payload = response.data?.decidePlayback
               if (payload) {
-                updatePlaybackState({
-                  capabilityProfileVersion: payload.capabilityProfileVersion,
-                  capabilityVersionMismatch: payload.capabilityVersionMismatch,
-                })
+                // Handle playlist navigation based on server action
+                if (
+                  payload.action === 'next' &&
+                  payload.playbackUrl &&
+                  payload.nextItemId
+                ) {
+                  // Advance to the next item in the playlist
+                  // Update originator with the new track's info for display
+                  const currentOriginator = latestPlayback.originator
+                  updatePlaybackState({
+                    capabilityProfileVersion: payload.capabilityProfileVersion,
+                    capabilityVersionMismatch:
+                      payload.capabilityVersionMismatch,
+                    currentTime: 0,
+                    mediaId: payload.nextItemId,
+                    originator: {
+                      id: payload.nextItemId,
+                      metadataType:
+                        currentOriginator?.metadataType ?? MetadataType.Track,
+                      originalTitle: payload.nextItemOriginalTitle ?? undefined,
+                      parentThumbUri: currentOriginator?.parentThumbUri,
+                      parentTitle: payload.nextItemParentTitle ?? undefined,
+                      thumbUri:
+                        payload.nextItemThumbUrl ??
+                        currentOriginator?.thumbUri ??
+                        null,
+                      title: payload.nextItemTitle ?? 'Unknown',
+                    },
+                    playbackUrl: payload.playbackUrl,
+                    playlistIndex: (latestPlayback.playlistIndex ?? 0) + 1,
+                    serverDuration: undefined, // Will be updated when new stream loads
+                    streamOffset: 0,
+                    streamPlanJson: payload.streamPlanJson,
+                    trickplayUrl: payload.trickplayUrl,
+                  })
+                } else if (payload.action === 'stop') {
+                  // End of playlist reached, stop playback
+                  void stopPlayback()
+                } else {
+                  // Default: just update capability info and continue
+                  updatePlaybackState({
+                    capabilityProfileVersion: payload.capabilityProfileVersion,
+                    capabilityVersionMismatch:
+                      payload.capabilityVersionMismatch,
+                  })
+                  void stopPlayback()
+                }
+              } else {
+                void stopPlayback()
               }
             })
             .catch((error: unknown) => {
@@ -539,43 +435,44 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
                 context: 'ShakaPlayer.decidePlayback',
                 notify: false,
               })
+              void stopPlayback()
             })
+        } else {
+          void stopPlayback()
         }
-
-        stopPlayback()
       }
 
       const handleVolumeChange = () => {
         updatePlaybackState({
-          isMuted: video.muted,
-          volume: video.volume,
+          isMuted: media.muted,
+          volume: media.volume,
         })
       }
 
-      video.addEventListener('timeupdate', handleTimeUpdate)
-      video.addEventListener('durationchange', handleDurationChange)
-      video.addEventListener('ended', handleEnded)
-      video.addEventListener('volumechange', handleVolumeChange)
+      media.addEventListener('timeupdate', handleTimeUpdate)
+      media.addEventListener('durationchange', handleDurationChange)
+      media.addEventListener('ended', handleEnded)
+      media.addEventListener('volumechange', handleVolumeChange)
 
       return () => {
-        video.removeEventListener('timeupdate', handleTimeUpdate)
-        video.removeEventListener('durationchange', handleDurationChange)
-        video.removeEventListener('ended', handleEnded)
-        video.removeEventListener('volumechange', handleVolumeChange)
+        media.removeEventListener('timeupdate', handleTimeUpdate)
+        media.removeEventListener('durationchange', handleDurationChange)
+        media.removeEventListener('ended', handleEnded)
+        media.removeEventListener('volumechange', handleVolumeChange)
       }
     }, [apolloClient, stopPlayback, updatePlaybackState])
 
     // Seek to specific time when currentTime changes externally
     const lastSeekTimeRef = useRef<number>(0)
     useEffect(() => {
-      const video = videoRef.current
-      if (!video) return
+      const media = mediaRef.current
+      if (!media) return
 
       // Account for stream offset - playbackState.currentTime is absolute position,
-      // but video.currentTime is relative to the current stream start
+      // but media.currentTime is relative to the current stream start
       const streamOffset = playbackStateRef.current.streamOffset ?? 0
       const targetTime = (playbackState.currentTime - streamOffset) / 1000 // Convert from milliseconds and adjust for offset
-      const currentTime = video.currentTime
+      const currentTime = media.currentTime
 
       // Only seek if the difference is significant (more than 1 second)
       // and not caused by normal playback progression
@@ -584,7 +481,7 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
         const now = Date.now()
         // Debounce seeks to prevent loops
         if (now - lastSeekTimeRef.current > 500) {
-          video.currentTime = targetTime
+          media.currentTime = targetTime
           lastSeekTimeRef.current = now
         }
       }
@@ -598,7 +495,18 @@ export const ShakaPlayer = forwardRef<ShakaPlayerHandle, ShakaPlayerProps>(
         ref={containerRef}
       >
         {/* Captions track handled by Shaka; disable lint check for missing native track */}
-        <video autoPlay className="h-full w-full" playsInline ref={videoRef} />
+        {mediaType === 'audio' ? (
+          <audio
+            className="hidden"
+            ref={mediaRef as React.RefObject<HTMLAudioElement>}
+          />
+        ) : (
+          <video
+            className="h-full w-full"
+            playsInline
+            ref={mediaRef as React.RefObject<HTMLVideoElement>}
+          />
+        )}
       </div>
     )
   },

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2025 Nexa Contributors <contact@nexa.ms>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+using Microsoft.Extensions.Logging;
+
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Enums;
 using NexaMediaServer.Infrastructure.Services.Resolvers;
@@ -21,7 +23,7 @@ namespace NexaMediaServer.Infrastructure.Services.Metadata;
 /// See <see href="https://kodi.wiki/view/Movie_artwork#Local_Artwork"/> and
 /// <see href="https://support.plex.tv/articles/200220677-local-media-assets-movies/"/>.
 /// </remarks>
-public sealed class LocalArtworkParser : ISidecarParser
+public sealed partial class LocalArtworkParser : ISidecarParser
 {
     private static readonly string[] SupportedImageExtensions =
     [
@@ -74,7 +76,9 @@ public sealed class LocalArtworkParser : ISidecarParser
             return false;
         }
 
-        return IsSupportedImageExtension(sidecarFile.Extension);
+        var canParse = IsSupportedImageExtension(sidecarFile.Extension);
+
+        return canParse;
     }
 
     /// <inheritdoc />
@@ -127,6 +131,7 @@ public sealed class LocalArtworkParser : ISidecarParser
         };
 
         var result = new SidecarParseResult(metadata, Hints: null, Source: this.Name);
+
         return Task.FromResult<SidecarParseResult?>(result);
     }
 

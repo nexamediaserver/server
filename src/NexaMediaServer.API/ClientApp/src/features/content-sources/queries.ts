@@ -12,29 +12,60 @@ export const LibrarySectionQuery = graphql(`
   }
 `)
 
+export const LibrarySectionBrowseOptionsQuery = graphql(`
+  query LibrarySectionBrowseOptions($contentSourceId: ID!) {
+    librarySection(id: $contentSourceId) {
+      id
+      availableRootItemTypes {
+        displayName
+        metadataTypes
+      }
+      availableSortFields {
+        key
+        displayName
+        requiresUserData
+      }
+    }
+  }
+`)
+
 export const LibrarySectionChildrenQuery = graphql(`
   query LibrarySectionChildren(
     $contentSourceId: ID!
-    $metadataType: MetadataType!
+    $metadataTypes: [MetadataType!]!
     $skip: Int
     $take: Int
+    $order: [ItemSortInput!]
   ) {
     librarySection(id: $contentSourceId) {
       id
       children(
-        metadataType: $metadataType
+        metadataTypes: $metadataTypes
         skip: $skip
         take: $take
-        order: { title: ASC }
+        order: $order
       ) {
         items {
           id
+          isPromoted
+          librarySectionId
           title
           year
           thumbUri
           metadataType
           length
+          viewCount
           viewOffset
+          primaryPerson {
+            id
+            title
+            metadataType
+          }
+          persons {
+            id
+            title
+            metadataType
+          }
         }
         pageInfo {
           hasNextPage
@@ -49,11 +80,11 @@ export const LibrarySectionChildrenQuery = graphql(`
 export const LibrarySectionLetterIndexQuery = graphql(`
   query LibrarySectionLetterIndex(
     $contentSourceId: ID!
-    $metadataType: MetadataType!
+    $metadataTypes: [MetadataType!]!
   ) {
     librarySection(id: $contentSourceId) {
       id
-      letterIndex(metadataType: $metadataType) {
+      letterIndex(metadataTypes: $metadataTypes) {
         letter
         count
         firstItemOffset

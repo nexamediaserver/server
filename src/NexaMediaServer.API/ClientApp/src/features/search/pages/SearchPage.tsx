@@ -6,10 +6,10 @@ import IconSearch from '~icons/material-symbols/search'
 import type { SearchQuery as SearchQueryType } from '@/shared/api/graphql/graphql'
 
 import { searchQueryDocument } from '@/app/graphql/search'
+import { MetadataTypeIcon } from '@/domain/components'
 import { type SearchRouteSearch } from '@/features/search/routes'
 import { MetadataType, SearchPivot } from '@/shared/api/graphql/graphql'
 import { Image } from '@/shared/components/Image'
-import { MetadataTypeIcon } from '@/shared/components/MetadataTypeIcon'
 import { Input } from '@/shared/components/ui/input'
 import { Skeleton } from '@/shared/components/ui/skeleton'
 import {
@@ -201,7 +201,7 @@ function SearchResultCard({ result }: SearchResultCardProps) {
     <Link
       className="group block space-y-2"
       params={{
-        contentSourceId: String(result.librarySectionId),
+        contentSourceId: result.librarySectionId,
         metadataItemId: result.id,
       }}
       to="/section/$contentSourceId/details/$metadataItemId"

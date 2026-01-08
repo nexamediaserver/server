@@ -1,5 +1,5 @@
 import { useSubscription } from '@apollo/client/react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { OnJobNotificationSubscription } from '@/shared/api/graphql/graphql'
 
@@ -30,35 +30,65 @@ export function JobNotificationsProvider({
   const [activeJobs, setActiveJobs] = useState<Map<string, JobNotification>>(
     new Map(),
   )
+  const removalTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  )
 
-  const { data: subscriptionData } = useSubscription(onJobNotification, {
+  const handleJobNotification = useCallback((notification: JobNotification) => {
+    if (notification.isActive) {
+      // Clear any pending removal timeout for this job
+      const existingTimeout = removalTimeoutsRef.current.get(notification.id)
+      if (existingTimeout !== undefined) {
+        clearTimeout(existingTimeout)
+        removalTimeoutsRef.current.delete(notification.id)
+      }
+
+      setActiveJobs((prev) => {
+        const next = new Map(prev)
+        next.set(notification.id, notification)
+        return next
+      })
+    } else {
+      // Update job to completed state immediately
+      setActiveJobs((prev) => {
+        const next = new Map(prev)
+        next.set(notification.id, notification)
+        return next
+      })
+
+      // Schedule removal after a short delay to show 100% completion
+      const timeout = setTimeout(() => {
+        setActiveJobs((current) => {
+          const updated = new Map(current)
+          updated.delete(notification.id)
+          return updated
+        })
+        removalTimeoutsRef.current.delete(notification.id)
+      }, 2000)
+
+      removalTimeoutsRef.current.set(notification.id, timeout)
+    }
+  }, [])
+
+  useSubscription(onJobNotification, {
+    onData: ({ data }) => {
+      if (data.data?.onJobNotification) {
+        handleJobNotification(data.data.onJobNotification)
+      }
+    },
     skip: !isAuthenticated,
   })
 
+  // Cleanup timeouts on unmount
   useEffect(() => {
-    if (subscriptionData?.onJobNotification) {
-      const notification = subscriptionData.onJobNotification
-      if (import.meta.env.DEV) {
-        console.debug('onJobNotification received', notification)
-      }
-      setActiveJobs((prev) => {
-        const next = new Map(prev)
-        if (notification.isActive) {
-          next.set(notification.id, notification)
-        } else {
-          // Remove completed jobs after a short delay to show 100% completion
-          setTimeout(() => {
-            setActiveJobs((current) => {
-              const updated = new Map(current)
-              updated.delete(notification.id)
-              return updated
-            })
-          }, 2000)
-        }
-        return next
+    const timeouts = removalTimeoutsRef.current
+    return () => {
+      timeouts.forEach((timeout) => {
+        clearTimeout(timeout)
       })
+      timeouts.clear()
     }
-  }, [subscriptionData])
+  }, [])
 
   const hasActiveJobs = activeJobs.size > 0
 

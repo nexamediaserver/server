@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 using System.Linq;
+
 using Microsoft.EntityFrameworkCore;
+
 using NexaMediaServer.API.Types;
 using NexaMediaServer.Core.Enums;
 using NexaMediaServer.Infrastructure.Services;
@@ -53,19 +55,28 @@ public sealed class RootMetadataItemsBySectionIdDataLoader
 
         var distinctKeys = keys.Distinct().ToArray();
         var sectionIds = distinctKeys.Select(key => key.SectionId).Distinct().ToArray();
-        var filteredTypes = distinctKeys.Select(key => key.MetadataType).Distinct().ToArray();
+
+        // Collect all requested metadata types from all keys and expand to inclusive types.
+        var requestedTypes = distinctKeys
+            .SelectMany(key => key.MetadataTypes)
+            .Distinct()
+            .ToArray();
+        var inclusiveTypes = requestedTypes
+            .SelectMany(GetInclusiveMetadataTypes)
+            .Distinct()
+            .ToArray();
 
         // Determine if any of the requested types are "browsable child" types
         // (types that should be returned even when they have a parent, e.g., albums in music libraries).
-        var browsableChildTypes = GetBrowsableChildTypes(filteredTypes);
-        var rootOnlyTypes = filteredTypes.Except(browsableChildTypes).ToArray();
+        var browsableChildTypes = GetBrowsableChildTypes(inclusiveTypes);
+        var rootOnlyTypes = inclusiveTypes.Except(browsableChildTypes).ToArray();
 
         var query = this
             .metadataService.GetQueryable()
             .Include(item => item.LibrarySection)
             .Where(item => sectionIds.Contains(item.LibrarySection.Uuid));
 
-        if (filteredTypes is { Length: > 0 })
+        if (inclusiveTypes is { Length: > 0 })
         {
             // Include items that are either:
             // 1. Root items (ParentId == null) of the requested types, OR
@@ -95,7 +106,7 @@ public sealed class RootMetadataItemsBySectionIdDataLoader
             var request = keys[i];
             span[i] = itemsBySection.TryGetValue(request.SectionId, out var items)
                 ? Result<IReadOnlyList<MetadataItem>?>.Resolve(
-                    ApplyTypeFilter(items, request.MetadataType)
+                    ApplyTypeFilter(items, request.MetadataTypes)
                 )
                 : Result<IReadOnlyList<MetadataItem>?>.Resolve(EmptyItems);
         }
@@ -103,7 +114,7 @@ public sealed class RootMetadataItemsBySectionIdDataLoader
 
     private static IReadOnlyList<MetadataItem> ApplyTypeFilter(
         IReadOnlyList<MetadataItem> items,
-        MetadataType metadataType
+        MetadataType[] metadataTypes
     )
     {
         if (items.Count == 0)
@@ -111,9 +122,23 @@ public sealed class RootMetadataItemsBySectionIdDataLoader
             return EmptyItems;
         }
 
-        var filteredItems = items.Where(item => item.MetadataType == metadataType).ToList();
+        var allowedTypes = metadataTypes
+            .SelectMany(GetInclusiveMetadataTypes)
+            .Distinct()
+            .ToHashSet();
+        var filteredItems = items.Where(item => allowedTypes.Contains(item.MetadataType)).ToList();
 
         return filteredItems.Count == 0 ? EmptyItems : filteredItems;
+    }
+
+    private static MetadataType[] GetInclusiveMetadataTypes(MetadataType requestedType)
+    {
+        return requestedType switch
+        {
+            // Picture libraries should show both sets and orphan pictures at the root level.
+            MetadataType.PictureSet => [MetadataType.PictureSet, MetadataType.Picture],
+            _ => [requestedType],
+        };
     }
 
     /// <summary>
@@ -122,14 +147,11 @@ public sealed class RootMetadataItemsBySectionIdDataLoader
     /// </summary>
     private static MetadataType[] GetBrowsableChildTypes(MetadataType[] requestedTypes)
     {
-        // These types are browsable at the library level regardless of having a parent.
-        // AlbumRelease: Albums in music libraries (children of artist groups).
-        // AlbumReleaseGroup: Album release groups in music libraries.
-        var browsableChildTypes = new HashSet<MetadataType>
-        {
-            MetadataType.AlbumRelease,
-            MetadataType.AlbumReleaseGroup,
-        };
+        // Currently no types require special browsing behavior.
+        // Music hierarchy (AlbumReleaseGroup → AlbumRelease → AlbumMedium → Track)
+        // follows standard parent-child relationships, so AlbumReleaseGroup (root items with ParentId == null)
+        // are returned for Music libraries when querying for AlbumReleaseGroup type.
+        var browsableChildTypes = new HashSet<MetadataType>();
 
         return requestedTypes.Where(browsableChildTypes.Contains).ToArray();
     }

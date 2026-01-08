@@ -3,10 +3,12 @@
 
 using System.Globalization;
 using System.Text.RegularExpressions;
+
 using NexaMediaServer.Common;
 using NexaMediaServer.Core.DTOs.Metadata;
 using NexaMediaServer.Core.Entities;
 using NexaMediaServer.Core.Enums;
+
 using IODir = System.IO.Directory;
 using IOPath = System.IO.Path;
 
@@ -145,6 +147,9 @@ public sealed partial class MusicAlbumResolver : ItemResolverBase<AlbumReleaseGr
         };
         releaseGroup.Children.Add(albumRelease);
 
+        // Track absolute index across all discs
+        var absoluteTrackIndex = 1;
+
         // Build disc structure and tracks
         if (discFolders.Count > 0)
         {
@@ -157,7 +162,8 @@ public sealed partial class MusicAlbumResolver : ItemResolverBase<AlbumReleaseGr
                     discFolder.Name,
                     discNumber,
                     discFolder.Path,
-                    albumRelease
+                    albumRelease,
+                    ref absoluteTrackIndex
                 );
                 albumRelease.Children.Add(medium);
             }
@@ -165,17 +171,29 @@ public sealed partial class MusicAlbumResolver : ItemResolverBase<AlbumReleaseGr
             // If there are also audio files at the root level, add them as disc 0
             if (rootAudioFiles.Count > 0)
             {
+                var rootAbsoluteIndex = 1;
                 var rootMedium = CreateMediumWithTracksFromFiles(
                     args,
                     DefaultDiscTitle,
                     0,
                     rootAudioFiles,
                     albumRelease,
-                    detectMultiDisc: false
+                    detectMultiDisc: false,
+                    ref rootAbsoluteIndex
                 );
                 albumRelease.Children = new List<MetadataBaseItem> { rootMedium }
                     .Concat(albumRelease.Children)
                     .ToList();
+
+                // Adjust absolute indices for subsequent discs
+                absoluteTrackIndex = rootAbsoluteIndex;
+                foreach (var child in albumRelease.Children.Skip(1).OfType<AlbumMedium>())
+                {
+                    foreach (var track in child.Children.OfType<Track>())
+                    {
+                        track.AbsoluteIndex = absoluteTrackIndex++;
+                    }
+                }
             }
         }
         else if (rootAudioFiles.Count > 0)
@@ -194,7 +212,8 @@ public sealed partial class MusicAlbumResolver : ItemResolverBase<AlbumReleaseGr
                     discNumber,
                     discFiles,
                     albumRelease,
-                    detectMultiDisc: discGroups.Count > 1
+                    detectMultiDisc: discGroups.Count > 1,
+                    ref absoluteTrackIndex
                 );
                 albumRelease.Children.Add(medium);
             }
@@ -208,7 +227,8 @@ public sealed partial class MusicAlbumResolver : ItemResolverBase<AlbumReleaseGr
         string discTitle,
         int discNumber,
         string discFolderPath,
-        AlbumRelease parent
+        AlbumRelease parent,
+        ref int absoluteTrackIndex
     )
     {
         var audioFiles = GetAudioFilesInFolder(discFolderPath);
@@ -218,7 +238,8 @@ public sealed partial class MusicAlbumResolver : ItemResolverBase<AlbumReleaseGr
             discNumber,
             audioFiles,
             parent,
-            detectMultiDisc: false
+            detectMultiDisc: false,
+            ref absoluteTrackIndex
         );
     }
 
@@ -228,7 +249,8 @@ public sealed partial class MusicAlbumResolver : ItemResolverBase<AlbumReleaseGr
         int discNumber,
         List<FileSystemMetadata> audioFiles,
         AlbumRelease parent,
-        bool detectMultiDisc
+        bool detectMultiDisc,
+        ref int absoluteTrackIndex
     )
     {
         var medium = new AlbumMedium
@@ -240,11 +262,40 @@ public sealed partial class MusicAlbumResolver : ItemResolverBase<AlbumReleaseGr
             Parent = parent,
         };
 
-        // Create tracks for each audio file
-        foreach (var audioFile in audioFiles.OrderBy(f => f.Name))
+        // Parse track info from all files first to determine proper ordering
+        var tracksWithInfo = audioFiles
+            .Select(f => new
+            {
+                File = f,
+                ParsedInfo = ParseTrackInfo(
+                    IOPath.GetFileNameWithoutExtension(f.Name),
+                    detectMultiDisc
+                )
+            })
+            .ToList();
+
+        // Sort by parsed track number (if available), otherwise by filename
+        var orderedTracks = tracksWithInfo
+            .OrderBy(t => t.ParsedInfo.TrackNumber ?? int.MaxValue)
+            .ThenBy(t => t.File.Name)
+            .ToList();
+
+        // Create tracks with sequential indices
+        var trackIndexWithinDisc = 1;
+        foreach (var trackInfo in orderedTracks)
         {
-            var track = CreateTrack(args, audioFile, medium, detectMultiDisc);
+            var track = CreateTrack(
+                args,
+                trackInfo.File,
+                medium,
+                trackInfo.ParsedInfo,
+                trackIndexWithinDisc,
+                absoluteTrackIndex
+            );
             medium.Children.Add(track);
+
+            trackIndexWithinDisc++;
+            absoluteTrackIndex++;
         }
 
         return medium;
@@ -254,14 +305,12 @@ public sealed partial class MusicAlbumResolver : ItemResolverBase<AlbumReleaseGr
         ItemResolveArgs args,
         FileSystemMetadata audioFile,
         AlbumMedium parent,
-        bool detectMultiDisc
+        (string Title, int? TrackNumber, int? DiscNumber) parsedInfo,
+        int trackIndexWithinDisc,
+        int absoluteIndex
     )
     {
-        var fileNameWithoutExt = IOPath.GetFileNameWithoutExtension(audioFile.Name);
         var extension = audioFile.Extension?.TrimStart('.').ToLowerInvariant();
-
-        // Parse track info from filename
-        var (title, trackNumber, _) = ParseTrackInfo(fileNameWithoutExt, detectMultiDisc);
 
         var part = new MediaPart
         {
@@ -282,17 +331,16 @@ public sealed partial class MusicAlbumResolver : ItemResolverBase<AlbumReleaseGr
 
         var track = new Track
         {
-            Title = title,
-            SortTitle = title,
+            Title = parsedInfo.Title,
+            SortTitle = parsedInfo.Title,
             LibrarySectionId = args.LibrarySectionId,
             MediaItems = new List<MediaItem> { mediaItem },
             Parent = parent,
+            // Use parsed track number if available, otherwise use sequential index
+            Index = parsedInfo.TrackNumber ?? trackIndexWithinDisc,
+            // Always set absolute index for album-wide ordering
+            AbsoluteIndex = absoluteIndex,
         };
-
-        if (trackNumber.HasValue)
-        {
-            track.Index = trackNumber.Value;
-        }
 
         return track;
     }

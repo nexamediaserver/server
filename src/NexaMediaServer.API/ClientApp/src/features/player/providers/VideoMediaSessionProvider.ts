@@ -1,5 +1,5 @@
+import { getImageTranscodeUrlSync } from '@/domain/utils'
 import { MetadataType } from '@/shared/api/graphql/graphql'
-import { getImageTranscodeUrlSync } from '@/shared/lib/images'
 
 import type {
   MediaSessionActionHandlers,

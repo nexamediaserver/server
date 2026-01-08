@@ -100,4 +100,19 @@ public enum HubType
     /// Extras associated with an item (trailers, behind-the-scenes, etc.).
     /// </summary>
     Extras = 36,
+
+    /// <summary>
+    /// Tracks from an album release, grouped by medium/disc.
+    /// </summary>
+    Tracks = 37,
+
+    /// <summary>
+    /// Album releases within an album release group.
+    /// </summary>
+    AlbumReleases = 38,
+
+    /// <summary>
+    /// Photos or pictures within a PhotoAlbum or PictureSet.
+    /// </summary>
+    Photos = 39,
 }

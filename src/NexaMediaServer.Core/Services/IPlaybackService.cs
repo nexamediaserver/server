@@ -88,4 +88,13 @@ public interface IPlaybackService
         PlaybackSeekRequest request,
         CancellationToken cancellationToken
     );
+
+    /// <summary>
+    /// Stops an active playback session, removing persisted state and cached assets.
+    /// </summary>
+    /// <param name="sessionId">The owning session identifier.</param>
+    /// <param name="playbackSessionId">The playback session identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> when a session was removed; otherwise <c>false</c>.</returns>
+    Task<bool> StopAsync(int sessionId, Guid playbackSessionId, CancellationToken cancellationToken);
 }
