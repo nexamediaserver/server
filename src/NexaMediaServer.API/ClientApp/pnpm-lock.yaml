@@ -144,8 +144,8 @@ importers:
         specifier: ^7.8.1
         version: 7.8.2
       shaka-player:
-        specifier: ^4.16.12
-        version: 4.16.12
+        specifier: ^4.16.13
+        version: 4.16.13
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -4984,8 +4984,8 @@ packages:
   setimmediate@1.0.5:
     resolution: {integrity: sha512-MATJdZp8sLqDl/68LfQmbP8zKPLQNV6BIZoIgrscFDQ+RsvK/BxeDQOgyxKKoh0y/8h3BqVFnCqQ/gd+reiIXA==}
 
-  shaka-player@4.16.12:
-    resolution: {integrity: sha512-bUne2YBbpMId8tU9kPSeZWSJHKbt2t5XyH3all6OsReRrfFYP9apOgohInbaDXNd0T/S8hUgWQT+wqLKH41XJg==}
+  shaka-player@4.16.13:
+    resolution: {integrity: sha512-2K6g1EBGXht3QnUqF/LKiGuVrvr+nx2AF2Y7DGicSOTUoTXY7YQW8CFXT1ha+ldQfkTuihQkju5NCEzY/KKuIw==}
     engines: {node: '>=18'}
 
   shebang-command@2.0.0:
@@ -10736,7 +10736,7 @@ snapshots:
 
   setimmediate@1.0.5: {}
 
-  shaka-player@4.16.12: {}
+  shaka-player@4.16.13: {}
 
   shebang-command@2.0.0:
     dependencies:
