@@ -82,7 +82,7 @@
     "@html-eslint/eslint-plugin": "^0.52.1",
     "@html-eslint/parser": "^0.50.0",
     "@iconify-json/material-symbols": "^1.2.51",
-    "@parcel/watcher": "^2.5.1",
+    "@parcel/watcher": "^2.5.4",
     "@svgr/core": "^8.1.0",
     "@svgr/plugin-jsx": "^8.1.0",
     "@tanstack/eslint-config": "^0.3.4",
