@@ -1,0 +1,22 @@
+{
+  "project_license": "AGPL-3.0-or-later",
+  "allowed": [
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Apache-2.0",
+    "ISC",
+    "0BSD",
+    "Unlicense",
+    "CC0-1.0",
+    "MPL-2.0",
+    "LGPL-2.1-or-later",
+    "LGPL-2.1-only",
+    "LGPL-3.0-or-later",
+    "LGPL-3.0-only",
+    "GPL-3.0-or-later",
+    "GPL-3.0-only"
+  ],
+  "flagged_for_review": ["GPL-2.0-only", "GPL-2.0-or-later"],
+  "notes": "Flagged licenses are not automatically compatible with AGPL-3.0 distribution and require manual legal review before merging a dependency with that license. Any dependency license not listed in 'allowed' or 'flagged_for_review' must also be treated as flagged and blocked from merging until reviewed."
+}

@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS field_values;
+DROP TABLE IF EXISTS items;
+DROP TABLE IF EXISTS field_definitions;
+DROP TABLE IF EXISTS libraries;

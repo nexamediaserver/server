@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go build, vet, format, generate, lint, vuln, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Generated code is up to date (sqlc)
+        run: |
+          go generate ./...
+          git diff --exit-code -- internal/database/sqlite/sqlcgen
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Format check (excludes generated sqlc code)
+        run: |
+          unformatted=$(gofmt -l . | grep -v '^internal/database/sqlite/sqlcgen/' || true)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.13.2
+
+      - name: Vulnerability scan
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+      - name: Test
+        run: go test ./... -race -covermode=atomic
+
+  web:
+    name: Frontend build, lint, test, audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (includes typecheck)
+        run: npm run build
+
+      - name: Test
+        run: npm run test
+
+      - name: Vulnerability audit
+        run: npm audit --audit-level=high
+
+  license:
+    name: Dependency license policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Check Go dependency licenses
+        run: |
+          allowed=$(jq -r '.allowed | join(",")' .github/license-policy.json)
+          # --ignore nexa: this project's own AGPL-3.0 license is not a "dependency" license concern.
+          # --confidence_threshold=0.8: the classifier's 0.9 default misses some real BSD-style
+          # license files (e.g. modernc.org/mathutil) that were manually verified as permissive.
+          go run github.com/google/go-licenses@latest check ./... \
+            --allowed_licenses="$allowed" --ignore nexa --confidence_threshold=0.8
+
+      - name: Check frontend dependency licenses
+        working-directory: web
+        run: |
+          npm ci
+          allowed=$(jq -r '.allowed | join(";")' ../.github/license-policy.json)
+          # web@0.0.0 is our own private package (UNLICENSED), not a third-party dependency.
+          npx license-checker-rseidelsohn --production --excludePackages "web@0.0.0" --onlyAllow "$allowed"

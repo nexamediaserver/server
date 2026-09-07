@@ -1,0 +1,19 @@
+version: "2"
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - errcheck
+  exclusions:
+    paths:
+      - internal/database/sqlite/sqlcgen/.*
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    paths:
+      - internal/database/sqlite/sqlcgen/.*
